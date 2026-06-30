@@ -1,0 +1,12 @@
+#!/bin/sh
+# Guard: only allow commits authored by the intended identity for this repo.
+# Wired via `git config core.hooksPath .githooks` (see SETUP below).
+
+expected="steve.mayne@gmail.com"
+actual=$(git var GIT_AUTHOR_IDENT | sed -n 's/.*<\(.*\)>.*/\1/p')
+
+if [ "$actual" != "$expected" ]; then
+  echo "✖ commit blocked: author email is <$actual>, expected <$expected>" >&2
+  echo "  fix: git config user.email $expected" >&2
+  exit 1
+fi
