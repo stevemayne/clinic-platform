@@ -41,7 +41,9 @@ variable "desired_count" {
 variable "n8n_image" {
   description = "n8n container image. PoC pulls the public image directly; front with an ECR pull-through cache for production (see main.tf)."
   type        = string
-  default     = "docker.n8n.io/n8nio/n8n:1.70.0"
+  # 2.x is required for N8N_EXTERNAL_STORAGE_S3_AUTH_AUTO_DETECT (task-role
+  # S3 auth) — 1.x only supported access key/secret. 2.29.10 = stable channel.
+  default = "docker.n8n.io/n8nio/n8n:2.29.10"
 }
 
 # --- Networking -------------------------------------------------------------

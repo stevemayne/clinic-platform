@@ -56,11 +56,10 @@ resource "aws_ecs_task_definition" "n8n" {
 
         # Binary data to S3 (required for queue mode later). AUTH_AUTO_DETECT
         # makes n8n use the AWS default credential chain (= the task IAM role)
-        # instead of demanding an access key/secret pair. Verified 2026-07.
+        # instead of demanding an access key/secret pair. Needs n8n 2.x (see
+        # var.n8n_image); 2.x also has s3 in the available modes by default.
         { name = "N8N_DEFAULT_BINARY_DATA_MODE", value = "s3" },
         { name = "N8N_EXTERNAL_STORAGE_S3_AUTH_AUTO_DETECT", value = "true" },
-        # s3 must also be listed as *available* or n8n refuses to start.
-        { name = "N8N_AVAILABLE_BINARY_DATA_MODES", value = "s3" },
         { name = "N8N_EXTERNAL_STORAGE_S3_HOST", value = "s3.${var.aws_region}.amazonaws.com" },
         { name = "N8N_EXTERNAL_STORAGE_S3_BUCKET_NAME", value = var.binary_data_bucket },
         { name = "N8N_EXTERNAL_STORAGE_S3_BUCKET_REGION", value = var.aws_region },
