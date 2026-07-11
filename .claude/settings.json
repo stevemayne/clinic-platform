@@ -15,7 +15,27 @@
       "Bash(AWS_PROFILE=acc aws route53 list-hosted-zones --query 'HostedZones[].Name' --output json)",
       "Bash(AWS_PROFILE=acc aws s3api head-bucket --bucket acc-n8n-binary-data)",
       "Bash(zsh -lc 'command -v terraform && terraform version')",
-      "Bash(zsh -lc 'set -e *)"
+      "Bash(zsh -lc 'set -e *)",
+      "Bash(aws ecr *)",
+      "Bash(aws ecs *)",
+      "Bash(aws ec2 *)",
+      "Bash(git credential *)",
+      "Bash(python3 -c 'import json,sys; r=json.load\\(sys.stdin\\)[\"workflow_runs\"][0]; print\\(r[\"status\"], r[\"conclusion\"], r[\"html_url\"]\\)')",
+      "Bash(export AWS_PROFILE=acc AWS_REGION=us-east-1)",
+      "Bash(aws rds *)",
+      "Bash(aws secretsmanager *)",
+      "Bash(aws logs *)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c 'import json,sys; [print\\(m\\) for m in json.load\\(sys.stdin\\)]')",
+      "Bash(python3 -c 'import json,sys; r=json.load\\(sys.stdin\\)[\"workflow_runs\"][0]; print\\(r[\"id\"], r[\"status\"], r[\"html_url\"]\\)')",
+      "Bash(curl -s -o /dev/null -w 'cal.acc.secureclinic.co -> %{http_code} \\(%{time_total}s\\)\\\\n' -L --max-time 30 https://cal.acc.secureclinic.co)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}\\\\n' --max-time 20 https://cal.acc.secureclinic.co)",
+      "Bash(zsh -lc 'cd /Users/steve/code/home/clinic-platform/terraform/envs/acc *)",
+      "Bash(curl -s -o /dev/null -w 'cal login: %{http_code}\\\\n' --max-time 20 https://cal.acc.secureclinic.co/auth/login)",
+      "Bash(curl -s -o /dev/null -w 'n8n: %{http_code}\\\\n' --max-time 20 https://n8n.acc.secureclinic.co)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/n8n-io/n8n/master/packages/%40n8n/config/src/configs/external-storage.config.ts\")",
+      "Bash(python3 -c 'import json,sys; d=json.load\\(sys.stdin\\); [print\\(i[\"path\"]\\) for i in d.get\\(\"items\",[]\\)][:10] or print\\(d\\)')",
+      "Bash(curl -s \"https://raw.githubusercontent.com/n8n-io/n8n/master/packages/core/src/binary-data/object-store/object-store.config.ts\")"
     ]
   }
 }

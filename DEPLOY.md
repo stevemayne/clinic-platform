@@ -131,12 +131,16 @@ CAL_DB_PW=$(openssl rand -base64 24 | tr -d '/+=')
 
 DB_HOST=$(terraform output -raw db_address)
 
-aws secretsmanager put-secret-version --secret-id acc/n8n_encryption_key     --secret-string "$N8N_ENC"      --profile acc --region us-east-1
-aws secretsmanager put-secret-version --secret-id acc/n8n_db_password        --secret-string "$N8N_DB_PW"    --profile acc --region us-east-1
-aws secretsmanager put-secret-version --secret-id acc/calcom_nextauth_secret --secret-string "$CAL_NEXTAUTH" --profile acc --region us-east-1
-aws secretsmanager put-secret-version --secret-id acc/calcom_encryption_key  --secret-string "$CAL_ENC"      --profile acc --region us-east-1
-aws secretsmanager put-secret-version --secret-id acc/calcom_database_url \
-  --secret-string "postgresql://calcom:${CAL_DB_PW}@${DB_HOST}:5432/calcom" \
+aws secretsmanager put-secret-value --secret-id acc/n8n_encryption_key     --secret-string "$N8N_ENC"      --profile acc --region us-east-1
+aws secretsmanager put-secret-value --secret-id acc/n8n_db_password        --secret-string "$N8N_DB_PW"    --profile acc --region us-east-1
+aws secretsmanager put-secret-value --secret-id acc/calcom_nextauth_secret --secret-string "$CAL_NEXTAUTH" --profile acc --region us-east-1
+aws secretsmanager put-secret-value --secret-id acc/calcom_encryption_key  --secret-string "$CAL_ENC"      --profile acc --region us-east-1
+# sslmode=no-verify is required: RDS defaults rds.force_ssl=1 and Cal.com's
+# node-postgres driver won't use TLS without it (Prisma migrate ignores the
+# unknown value and TLSes anyway). TLS on, cert verification off — see the
+# DB-TLS hardening item in TODO.md §4.
+aws secretsmanager put-secret-value --secret-id acc/calcom_database_url \
+  --secret-string "postgresql://calcom:${CAL_DB_PW}@${DB_HOST}:5432/calcom?sslmode=no-verify" \
   --profile acc --region us-east-1
 ```
 
@@ -173,10 +177,14 @@ Then run this SQL as `postgres` (passwords must match the secrets from §6):
 
 ```sql
 CREATE ROLE n8n LOGIN PASSWORD '<value of acc/n8n_db_password>';
+GRANT n8n TO postgres;          -- RDS PG 16+: master must be a member to create a DB owned by the role
 CREATE DATABASE n8n OWNER n8n;
+REVOKE n8n FROM postgres;
 
 CREATE ROLE calcom LOGIN PASSWORD '<the CAL_DB_PW embedded in calcom_database_url>';
+GRANT calcom TO postgres;
 CREATE DATABASE calcom OWNER calcom;
+REVOKE calcom FROM postgres;
 ```
 
 > The exact connection mechanism (bastion vs one-off task) is a testing-time decision — the modules intentionally leave DB init out of Terraform. Whatever you choose, it must sit in the VPC on `acc-ecs-sg`.

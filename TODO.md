@@ -47,19 +47,20 @@ Outstanding work for the clinic platform, for picking up in a fresh session. Rea
 
 ## 4. Verify during M2/M3 testing (caveats baked into the code)
 
-- [ ] **DB roles/databases are NOT created by Terraform.** Build the app init step (one-off task or psql) that creates the `n8n` and `calcom` databases + least-privilege roles, with passwords matching the `n8n_db_password` / `calcom_database_url` secrets. Services crash-loop until this runs.
-- [ ] **n8n S3 external-storage credentials:** confirm whether n8n uses the task IAM role or requires explicit access key/secret for `N8N_EXTERNAL_STORAGE_S3_*`. Adjust [terraform/modules/n8n_service/main.tf](terraform/modules/n8n_service/main.tf) if keys are needed.
-- [ ] **Cal.com health-check path + matcher:** verify `/` + `200-399` is right for the chosen image (may need `/auth/login`). See [terraform/modules/calcom_service/alb.tf](terraform/modules/calcom_service/alb.tf).
-- [ ] **Cal.com migrate command:** verify `npx prisma migrate deploy --schema packages/prisma/schema.prisma` against the chosen image. See [terraform/modules/calcom_service/migrate.tf](terraform/modules/calcom_service/migrate.tf).
-- [ ] **Cal.com first-apply** leaves the service unhealthy until CI pushes the image — confirm the build→migrate→deploy order works end to end.
+- [x] **DB roles/databases are NOT created by Terraform.** Done for ACC (2026-07) via a one-off Fargate task (`postgres:17-alpine`, private subnets, `acc-ecs-sg`, passwords injected via ECS `secrets`); SQL per DEPLOY.md §7 — note the `GRANT <role> TO postgres` now documented there (required on RDS PG 16+).
+- [x] **n8n S3 external-storage credentials:** resolved — `N8N_EXTERNAL_STORAGE_S3_AUTH_AUTO_DETECT=true` makes n8n use the default AWS credential chain (task IAM role); no access keys. Also required: `N8N_AVAILABLE_BINARY_DATA_MODES=s3`. Both set in [terraform/modules/n8n_service/main.tf](terraform/modules/n8n_service/main.tf).
+- [x] **Cal.com health-check path + matcher:** verified — `/` returns 307 (→ `/auth/login`), which the `200-399` matcher accepts.
+- [x] **Cal.com migrate command:** verified against the pinned image — needed `DATABASE_DIRECT_URL` set alongside `DATABASE_URL` (both from the same secret; no pooler).
+- [x] **Cal.com first-apply** build→migrate→deploy order confirmed end to end via the calcom-image workflow (2026-07); setup wizard reachable at `/auth/setup`.
 - [ ] Confirm Bedrock model access is enabled and the `bedrock-runtime` VPC endpoint resolves from private subnets.
+- [ ] **Harden DB TLS verification:** both apps connect to RDS over TLS but skip certificate verification (`PGSSLMODE=no-verify` for Cal.com, `DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED=false` for n8n) because the RDS CA bundle isn't in the images' trust store. Ship the bundle (bake into image or mount) and switch to verified TLS.
 
 ---
 
 ## 5. Per-clinic operational steps (onboarding runbook material)
 
-- [ ] Populate Secrets Manager placeholders (created with `placeholder-populate-me`): `n8n_encryption_key` (**back this up — losing it bricks n8n credentials**), `n8n_db_password`, `calcom_nextauth_secret`, `calcom_encryption_key`, `calcom_database_url`.
-- [ ] RDS master password is AWS-managed — use it to run the DB init step.
+- [x] Populate Secrets Manager placeholders — done for ACC (2026-07). `calcom_database_url` carries `?sslmode=no-verify` (see the DB-TLS hardening item in §4). **Still outstanding: back up `acc/n8n_encryption_key` outside AWS — losing it bricks n8n credentials.**
+- [x] RDS master password is AWS-managed — used for the ACC DB init step.
 - [ ] Migrate ACC's existing Make.com scenarios into n8n (intake → consents → insurance verification → scheduling → discharge).
 
 ---

@@ -10,10 +10,18 @@ locals {
   app_environment = [
     { name = "NEXTAUTH_URL", value = "https://${local.fqdn}" },
     { name = "NEXT_PUBLIC_WEBAPP_URL", value = "https://${local.fqdn}" },
+    # RDS PG15+ defaults rds.force_ssl=1; Cal.com's node-postgres driver
+    # adapter won't use TLS unless told to (Prisma's migrate engine does,
+    # so the migrate task is unaffected). "no-verify" = TLS on, cert
+    # verification off — the RDS CA bundle isn't in the image trust store;
+    # hardening TODO: ship the bundle and use verify-full.
+    { name = "PGSSLMODE", value = "no-verify" },
   ]
 
   app_secrets = [
     { name = "DATABASE_URL", valueFrom = var.database_url_secret_arn },
+    # Prisma's directUrl (pooler bypass) — no PgBouncer here, so same URL.
+    { name = "DATABASE_DIRECT_URL", valueFrom = var.database_url_secret_arn },
     { name = "NEXTAUTH_SECRET", valueFrom = var.nextauth_secret_arn },
     { name = "CALENDSO_ENCRYPTION_KEY", valueFrom = var.encryption_key_secret_arn },
   ]

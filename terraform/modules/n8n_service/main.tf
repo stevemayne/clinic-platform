@@ -41,6 +41,12 @@ resource "aws_ecs_task_definition" "n8n" {
         { name = "DB_POSTGRESDB_PORT", value = tostring(var.db_port) },
         { name = "DB_POSTGRESDB_DATABASE", value = var.db_name },
         { name = "DB_POSTGRESDB_USER", value = var.db_user },
+        # RDS PG15+ defaults rds.force_ssl=1; node-postgres won't use TLS
+        # unless told to. Cert verification stays off because the RDS CA
+        # bundle isn't in the image trust store — hardening TODO: ship the
+        # bundle and verify.
+        { name = "DB_POSTGRESDB_SSL_ENABLED", value = "true" },
+        { name = "DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED", value = "false" },
         { name = "N8N_HOST", value = local.fqdn },
         { name = "N8N_PORT", value = tostring(local.container_port) },
         { name = "N8N_PROTOCOL", value = "https" },
@@ -48,10 +54,13 @@ resource "aws_ecs_task_definition" "n8n" {
         { name = "N8N_EDITOR_BASE_URL", value = "https://${local.fqdn}/" },
         { name = "GENERIC_TIMEZONE", value = var.timezone },
 
-        # Binary data to S3 (required for queue mode later). NOTE: confirm n8n's
-        # S3 external-storage credential model during M2 testing — older versions
-        # expect access key/secret rather than the task's IAM role.
+        # Binary data to S3 (required for queue mode later). AUTH_AUTO_DETECT
+        # makes n8n use the AWS default credential chain (= the task IAM role)
+        # instead of demanding an access key/secret pair. Verified 2026-07.
         { name = "N8N_DEFAULT_BINARY_DATA_MODE", value = "s3" },
+        { name = "N8N_EXTERNAL_STORAGE_S3_AUTH_AUTO_DETECT", value = "true" },
+        # s3 must also be listed as *available* or n8n refuses to start.
+        { name = "N8N_AVAILABLE_BINARY_DATA_MODES", value = "s3" },
         { name = "N8N_EXTERNAL_STORAGE_S3_HOST", value = "s3.${var.aws_region}.amazonaws.com" },
         { name = "N8N_EXTERNAL_STORAGE_S3_BUCKET_NAME", value = var.binary_data_bucket },
         { name = "N8N_EXTERNAL_STORAGE_S3_BUCKET_REGION", value = var.aws_region },

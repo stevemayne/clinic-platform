@@ -25,6 +25,8 @@ resource "aws_ecs_task_definition" "migrate" {
 
       secrets = [
         { name = "DATABASE_URL", valueFrom = var.database_url_secret_arn },
+        # Prisma's directUrl (pooler bypass) — no PgBouncer here, so same URL.
+        { name = "DATABASE_DIRECT_URL", valueFrom = var.database_url_secret_arn },
       ]
 
       logConfiguration = {
