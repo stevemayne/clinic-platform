@@ -2,6 +2,8 @@
 # instance (hosting the `n8n` and `calcom` databases — created by the app
 # init step, not Terraform, since the DB is private), and encrypted S3 buckets.
 
+data "aws_caller_identity" "current" {}
+
 # --- KMS --------------------------------------------------------------------
 
 resource "aws_kms_key" "this" {
@@ -89,7 +91,7 @@ resource "aws_db_instance" "this" {
   master_user_secret_kms_key_id = aws_kms_key.this.arn
   port                          = 5432
 
-  backup_retention_period    = 7
+  backup_retention_period    = var.db_backup_retention_days
   auto_minor_version_upgrade = true
   maintenance_window         = "wed:01:00-wed:02:00"
   backup_window              = "23:00-23:30"
@@ -98,7 +100,7 @@ resource "aws_db_instance" "this" {
   copy_tags_to_snapshot        = true
   skip_final_snapshot          = false
   final_snapshot_identifier    = "${var.name_prefix}-db-final"
-  performance_insights_enabled = true
+  performance_insights_enabled = var.performance_insights_enabled
 
   parameter_group_name = aws_db_parameter_group.this.name
 
@@ -108,9 +110,12 @@ resource "aws_db_instance" "this" {
 # --- S3 buckets -------------------------------------------------------------
 
 locals {
+  # S3 bucket names are global across all AWS accounts, and bare
+  # "<clinic>-documents" can collide with anyone's bucket. Suffix with the
+  # account ID for uniqueness (same convention as the tfstate bucket).
   buckets = {
-    binary    = "${var.name_prefix}-n8n-binary-data"
-    documents = "${var.name_prefix}-documents"
+    binary    = "${var.name_prefix}-n8n-binary-data-${data.aws_caller_identity.current.account_id}"
+    documents = "${var.name_prefix}-documents-${data.aws_caller_identity.current.account_id}"
   }
 }
 

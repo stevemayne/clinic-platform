@@ -12,7 +12,10 @@
       "Bash(command -v tfenv tofu terragrunt)",
       "Read(//usr/local/bin/**)",
       "Bash(AWS_PROFILE=acc aws ecr describe-repositories --query 'repositories[].repositoryName' --output json)",
-      "Bash(AWS_PROFILE=acc aws route53 list-hosted-zones --query 'HostedZones[].Name' --output json)"
+      "Bash(AWS_PROFILE=acc aws route53 list-hosted-zones --query 'HostedZones[].Name' --output json)",
+      "Bash(AWS_PROFILE=acc aws s3api head-bucket --bucket acc-n8n-binary-data)",
+      "Bash(zsh -lc 'command -v terraform && terraform version')",
+      "Bash(zsh -lc 'set -e *)"
     ]
   }
 }

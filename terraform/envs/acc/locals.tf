@@ -21,6 +21,16 @@ locals {
   multi_az            = false # per-clinic HA upsell
   deletion_protection = true
 
+  # TEMPORARY — sized to the AWS free plan while ACC is pre-launch. Revert to
+  # the module defaults (db.t4g.small, 30→100 GB, 7-day backups, Performance
+  # Insights on) before real PHI lands: 1-day backup retention is below the
+  # platform's HIPAA posture. Tracked in TODO.md §1.
+  db_instance_class        = "db.t4g.micro" # free-plan-eligible class
+  db_allocated_storage     = 20             # free-plan storage cap
+  db_max_allocated_storage = 0              # storage autoscaling off
+  db_backup_retention_days = 1              # free-plan maximum
+  db_performance_insights  = false
+
   common_tags = {
     Clinic      = local.clinic
     Environment = local.environment

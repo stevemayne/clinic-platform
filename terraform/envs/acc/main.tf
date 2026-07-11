@@ -38,6 +38,13 @@ module "data" {
   multi_az              = local.multi_az
   deletion_protection   = local.deletion_protection
 
+  # TEMPORARY free-plan sizing — see locals.tf.
+  db_instance_class            = local.db_instance_class
+  db_allocated_storage         = local.db_allocated_storage
+  db_max_allocated_storage     = local.db_max_allocated_storage
+  db_backup_retention_days     = local.db_backup_retention_days
+  performance_insights_enabled = local.db_performance_insights
+
   tags = local.common_tags
 }
 

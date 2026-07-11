@@ -2,7 +2,7 @@
 
 Outstanding work for the clinic platform, for picking up in a fresh session. Read [CLAUDE.md](CLAUDE.md) first, then [implementation.md](implementation.md) (build spec / milestones) and [RECOMMENDATIONS.md](RECOMMENDATIONS.md) (architecture + business decisions).
 
-**Where we are:** M0–M3 of the Terraform are built and `validate` clean — bootstrap, `network`, `ecs_cluster`, `data`, `ingress`, `n8n_service`, `calcom_service`, wired into `envs/acc` and `envs/_template`. Nothing has been `apply`-ed to a real account yet.
+**Where we are:** M0–M3 of the Terraform are built and `validate` clean — bootstrap, `network`, `ecs_cluster`, `data`, `ingress`, `n8n_service`, `calcom_service`, wired into `envs/acc` and `envs/_template`. Bootstrap has been applied to the real ACC account (`185818464031`) and the first `envs/acc` apply is underway — temporarily downsized to the AWS free plan (see §1).
 
 ---
 
@@ -10,9 +10,10 @@ Outstanding work for the clinic platform, for picking up in a fresh session. Rea
 
 > The steps below are expanded into an ordered, copy-pasteable runbook in [DEPLOY.md](DEPLOY.md) (with the real ACC values: account `185818464031`, domain `acc.secureclinic.co`).
 
-- [ ] Create ACC's AWS account in the Org (manually for now — no landing-zone layer yet).
-- [ ] Run `terraform/scripts/bootstrap` in that account: `terraform apply -var 'clinic=acc' -var 'github_repo=<owner>/acc'`.
-- [ ] Put the bootstrap `state_bucket_name` output (account ID) into [terraform/envs/acc/backend.tf](terraform/envs/acc/backend.tf) (currently `tfstate-acc-000000000000` → ACC account `185818464031`).
+- [x] Create ACC's AWS account in the Org (manually for now — no landing-zone layer yet).
+- [x] Run `terraform/scripts/bootstrap` in that account: `terraform apply -var 'clinic=acc' -var 'github_repo=stevemayne/clinic-platform'` (applied 2026-07 — OIDC provider, both CI roles, state bucket verified).
+- [x] Put the bootstrap `state_bucket_name` output (account ID) into [terraform/envs/acc/backend.tf](terraform/envs/acc/backend.tf) (`tfstate-acc-185818464031`).
+- [ ] **Revert the temporary free-plan RDS sizing** in [terraform/envs/acc/locals.tf](terraform/envs/acc/locals.tf) (`db.t4g.micro`, 20 GB, autoscaling off, 1-day backups, Performance Insights off) once the account moves off the AWS free plan — **before real PHI lands**: 1-day backup retention is below the platform's HIPAA posture. The `data` module defaults are the production values; deleting the override block restores them.
 - [x] Set the real domain in [terraform/envs/acc/locals.tf](terraform/envs/acc/locals.tf) — `domain_name = "acc.secureclinic.co"` (apex `secureclinic.co`, registered, DNS at GoDaddy).
 - [ ] **Two-phase apply** (ACM validation runs in-apply, so the zone must exist and be delegated first): (a) `terraform apply -target=aws_route53_zone.public` to create the zone and emit `name_servers`; (b) in **GoDaddy DNS for `secureclinic.co`**, add an `NS` record for host `acc` → the 4 zone name servers, wait for propagation; (c) `terraform apply` for the rest.
 - [ ] **Google Workspace OAuth client (M4/chat):** ACC's Workspace admin creates an OpenID Connect / OAuth 2.0 client in ACC's Google Cloud project (consent screen = Internal), redirect URI `https://chat.acc.secureclinic.co/oauth/google/callback`; hand over client ID + secret for the `chat_oauth_client_secret` placeholder. Per-clinic onboarding dependency.

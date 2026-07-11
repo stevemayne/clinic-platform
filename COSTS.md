@@ -47,6 +47,8 @@ These live in the management / shared-services account and get cheaper *per clie
 | AWS Backup | beyond RDS automated backups | 5 |
 | **Fixed subtotal** | | **≈ $210** |
 
+> **Free-plan note (2026-07):** while ACC is pre-launch on the AWS free plan, RDS is temporarily downsized (`db.t4g.micro`, 20 GB, autoscaling off, 1-day backups, no Performance Insights) — see TODO.md §1 for the revert item. The $29 RDS line above reflects the production spec.
+
 > **Cal.com adds ~$36/mo**, almost entirely its Fargate task — it reuses the existing per-clinic RDS (as a second `calcom` database) and ALB (as another host rule), so there's no new database or load balancer. A leaner 0.5 vCPU / 1 GB task (~$18) is possible if metrics allow, but 1 GB can be tight for Cal.com's Node runtime.
 
 ### 2b. Variable Bedrock (Claude) — "typical" medium clinic

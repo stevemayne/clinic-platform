@@ -36,6 +36,18 @@ variable "db_max_allocated_storage" {
   default     = 100
 }
 
+variable "db_backup_retention_days" {
+  description = "Automated backup retention (days). 7 is the production baseline; AWS free-plan accounts cap this at 1."
+  type        = number
+  default     = 7
+}
+
+variable "performance_insights_enabled" {
+  description = "Enable RDS Performance Insights."
+  type        = bool
+  default     = true
+}
+
 variable "multi_az" {
   description = "Multi-AZ RDS (HA). Per-clinic upsell; default single-AZ."
   type        = bool
