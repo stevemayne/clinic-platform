@@ -8,12 +8,14 @@ Outstanding work for the clinic platform, for picking up in a fresh session. Rea
 
 ## 1. Before any real `terraform apply`
 
+> The steps below are expanded into an ordered, copy-pasteable runbook in [DEPLOY.md](DEPLOY.md) (with the real ACC values: account `185818464031`, domain `acc.secureclinic.co`).
+
 - [ ] Create ACC's AWS account in the Org (manually for now — no landing-zone layer yet).
 - [ ] Run `terraform/scripts/bootstrap` in that account: `terraform apply -var 'clinic=acc' -var 'github_repo=<owner>/acc'`.
-- [ ] Put the bootstrap `state_bucket_name` output (account ID) into [terraform/envs/acc/backend.tf](terraform/envs/acc/backend.tf) (currently `tfstate-acc-000000000000`).
-- [ ] Set the real domain in [terraform/envs/acc/locals.tf](terraform/envs/acc/locals.tf) (`domain_name`, currently `acc.example.com`).
-- [ ] `terraform init && terraform apply` from `envs/acc`.
-- [ ] Delegate the registrar's NS records to the `name_servers` output.
+- [ ] Put the bootstrap `state_bucket_name` output (account ID) into [terraform/envs/acc/backend.tf](terraform/envs/acc/backend.tf) (currently `tfstate-acc-000000000000` → ACC account `185818464031`).
+- [x] Set the real domain in [terraform/envs/acc/locals.tf](terraform/envs/acc/locals.tf) — `domain_name = "acc.secureclinic.co"` (apex `secureclinic.co`, registered, DNS at GoDaddy).
+- [ ] **Two-phase apply** (ACM validation runs in-apply, so the zone must exist and be delegated first): (a) `terraform apply -target=aws_route53_zone.public` to create the zone and emit `name_servers`; (b) in **GoDaddy DNS for `secureclinic.co`**, add an `NS` record for host `acc` → the 4 zone name servers, wait for propagation; (c) `terraform apply` for the rest.
+- [ ] **Google Workspace OAuth client (M4/chat):** ACC's Workspace admin creates an OpenID Connect / OAuth 2.0 client in ACC's Google Cloud project (consent screen = Internal), redirect URI `https://chat.acc.secureclinic.co/oauth/google/callback`; hand over client ID + secret for the `chat_oauth_client_secret` placeholder. Per-clinic onboarding dependency.
 - [ ] Populate the Secrets Manager placeholders (see §5).
 
 ---
@@ -21,7 +23,11 @@ Outstanding work for the clinic platform, for picking up in a fresh session. Rea
 ## 2. Terraform — remaining build
 
 - [ ] **M4 — `bedrock_access` module:** IAM policy/role for `bedrock:InvokeModel` (n8n already has it inline in its task role; factor out / extend for the chat service and confirm region + model access is enabled in the account).
-- [ ] **M4 — `chat_service` module (LibreChat or Open WebUI):** Fargate service at `chat.<domain>`, pointed at Bedrock, SSO via Google Workspace, clinical prompt templates. Mirror `n8n_service` structure.
+- [ ] **M4 — `chat_service` module (LibreChat or Open WebUI):** Fargate service at `chat.<domain>`, pointed at Bedrock, clinical prompt templates. Mirror `n8n_service` structure.
+  - Auth = **Google Workspace via OpenID Connect** (LibreChat generic `OPENID_*`, issuer `https://accounts.google.com`, scopes `openid email profile`), **SSO-only** (disable local signup), restrict sign-in by validating the `hd` claim against the clinic's Workspace domain, JIT provisioning. Generic OIDC (not the Google-specific connector) keeps it IdP-agnostic.
+  - Add a `chat_oauth_client_secret` Secrets Manager placeholder (client ID is non-sensitive config); inject via ECS `secrets`.
+  - Redirect URI = `https://chat.<clinic>.<apex>/oauth/google/callback` (ACC: `https://chat.acc.secureclinic.co/oauth/google/callback`).
+  - **Note:** Google SSO is free for LibreChat (MIT); Cal.com SSO is a commercial-license feature and n8n SSO is Enterprise-tier — don't assume one login spans all three apps for free.
 - [ ] **M5 — Productize:** finalize `envs/_template`, write the onboarding runbook, and dry-run a second clinic into a fresh account to prove replication.
 - [ ] **ECR pull-through cache for n8n** (production upgrade): add the `aws_ecr_pull_through_cache_rule` (Docker Hub upstream — needs a Docker Hub credential secret), then point `var.n8n_image` at the cache URI and pin by digest. Documented inline in [terraform/modules/n8n_service/main.tf](terraform/modules/n8n_service/main.tf).
 - [ ] **Tighten the execution-role secret/KMS access** in [terraform/modules/ecs_cluster/main.tf](terraform/modules/ecs_cluster/main.tf) from `"*"` to specific secret + key ARNs.
@@ -32,7 +38,7 @@ Outstanding work for the clinic platform, for picking up in a fresh session. Rea
 ## 3. CI/CD (`.github/workflows`) — not started
 
 - [ ] **terraform-ci** workflow: matrix over clinics (env name + clinic account role ARN + region), `tf_working_dir = envs/<clinic>`, OIDC auth, PR-plan / main-apply.
-- [ ] **Cal.com image build** workflow: build per-clinic image with `--build-arg NEXT_PUBLIC_WEBAPP_URL=https://cal.<clinic>.<apex>`, push to the clinic's ECR repo, run the Prisma **migrate** task (`aws ecs run-task` on the `*-calcom-migrate` task def), then `aws ecs update-service --force-new-deployment`.
+- [x] **Cal.com image build** workflow — drafted at [.github/workflows/calcom-image.yml](.github/workflows/calcom-image.yml): OIDC → `github-ci-role`, builds from the pinned `CALCOM_REF` SHA (MIT-license guard), pushes `:latest` + `:main-<sha>` to the clinic's ECR, gates on the Prisma migrate task exit code, then force-new-deployment + wait for stable. Matrixed over clinics (ACC only today). **Untested against a real account** — verify once ACC is applied; watch build RAM (~6 GB heap) on `ubuntu-latest` and bump to a larger runner if it OOMs.
 - [ ] **n8n workflow library** deploy: store workflows as JSON in-repo, deploy to each clinic's n8n via its public API, parameterized per clinic (board IDs, domains, credential names).
 - [ ] Stand up the shared `ci-templates` repo (or inline the reusable workflows).
 

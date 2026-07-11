@@ -1,0 +1,17 @@
+# Pinned Cal.com (Cal.diy) upstream source for per-clinic image builds.
+# Read by CI (Cal.com image-build workflow) and by DEPLOY.md §8 local builds.
+# Rationale, build args, and the ref decision: see CALCOM_IMAGE.md.
+#
+# Decision: pin `main` to a commit SHA to get the MIT-licensed community edition
+# (the newest *tag*, v6.2.0, is still AGPLv3+ee — no MIT tag exists yet).
+#
+# Bumping Cal.com = update CALCOM_SHA, then RE-VERIFY the LICENSE at the new SHA
+# is still MIT before building (the whole point of pinning main is clean MIT).
+
+CALCOM_REPO=https://github.com/calcom/cal.diy.git
+CALCOM_REF=main
+CALCOM_SHA=f00434927386c9ecdcbd7e6c5f82d22044a245bc
+
+# SHA date:      2026-07-09
+# License:       MIT (verified at this SHA on 2026-07-11)
+# ECR image tag: main-f004349

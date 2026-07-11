@@ -6,8 +6,9 @@ locals {
 
   name_prefix = basename(path.cwd) # "acc"
 
-  # Replace with ACC's real domain (delegate NS to the zone created below).
-  domain_name = "acc.example.com"
+  # ACC's subdomain of the shared platform apex (secureclinic.co).
+  # Delegate NS for this zone from the secureclinic.co apex (see below).
+  domain_name = "acc.secureclinic.co"
 
   # Networking
   vpc_cidr           = "10.0.0.0/16"

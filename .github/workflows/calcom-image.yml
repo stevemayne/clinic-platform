@@ -1,0 +1,147 @@
+name: calcom-image
+
+# Builds the per-clinic Cal.com image from the pinned upstream ref (CALCOM_REF),
+# pushes it to that clinic's ECR repo, runs the Prisma migration task, and rolls
+# the service. See CALCOM_IMAGE.md for the why (per-clinic NEXT_PUBLIC_WEBAPP_URL,
+# MIT pinning, build args) and DEPLOY.md §8 for the manual equivalent.
+#
+# Auth: OIDC into each clinic account's `github-ci-role` (ECR + ECS), created by
+# scripts/bootstrap. No long-lived credentials.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - CALCOM_REF                          # rebuild on a Cal.com version bump
+      - .github/workflows/calcom-image.yml
+
+permissions:
+  id-token: write                           # assume the CI role via OIDC
+  contents: read
+
+concurrency:
+  # One in-flight build/deploy per clinic; newer runs cancel older queued ones.
+  group: calcom-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    # Cal.com's Next.js build wants ~6 GB Node heap (MAX_OLD_SPACE_SIZE=6144).
+    # The free ubuntu-latest (7 GB) is borderline and may OOM — switch to a
+    # larger runner label if the build fails on memory.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # One entry per clinic. Adding a clinic = add a row (account + domain).
+        clinic:
+          - slug: acc
+            account_id: "185818464031"
+            domain: acc.secureclinic.co
+    env:
+      AWS_REGION: us-east-1
+      CLINIC: ${{ matrix.clinic.slug }}
+      WEBAPP_URL: https://cal.${{ matrix.clinic.domain }}
+      CLUSTER: ${{ matrix.clinic.slug }}-ecs-cluster
+      SERVICE: ${{ matrix.clinic.slug }}-calcom
+      MIGRATE_TASKDEF: ${{ matrix.clinic.slug }}-calcom-migrate
+      ECR_REPO: ${{ matrix.clinic.slug }}-calcom
+
+    steps:
+      - name: Checkout platform repo (for CALCOM_REF)
+        uses: actions/checkout@v4
+
+      - name: Read pinned Cal.com ref
+        id: ref
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source ./CALCOM_REF                # CALCOM_REPO, CALCOM_SHA
+          echo "repo=$CALCOM_REPO"          >> "$GITHUB_OUTPUT"
+          echo "sha=$CALCOM_SHA"            >> "$GITHUB_OUTPUT"
+          echo "tag=main-${CALCOM_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Cal.com (Cal.diy) at pinned SHA
+        uses: actions/checkout@v4
+        with:
+          repository: calcom/cal.diy
+          ref: ${{ steps.ref.outputs.sha }}
+          path: calcom-src
+          # Guard against a moved/rewritten SHA: verify the license is still MIT.
+      - name: Verify MIT license at pinned SHA
+        run: |
+          set -euo pipefail
+          head -1 calcom-src/LICENSE | grep -q "MIT License" \
+            || { echo "::error::LICENSE at pinned SHA is not MIT — see CALCOM_REF"; exit 1; }
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ matrix.clinic.account_id }}:role/github-ci-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./calcom-src
+          file: ./calcom-src/Dockerfile
+          push: true
+          # DATABASE_URL is a throwaway build value (Prisma generate needs it, no
+          # default in the Dockerfile). NEXTAUTH_SECRET / CALENDSO_ENCRYPTION_KEY
+          # use their dummy build defaults. Real secrets are injected at runtime.
+          build-args: |
+            NEXT_PUBLIC_WEBAPP_URL=${{ env.WEBAPP_URL }}
+            CALCOM_TELEMETRY_DISABLED=1
+            DATABASE_URL=postgresql://build:build@localhost:5432/build
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO }}:latest
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO }}:${{ steps.ref.outputs.tag }}
+          cache-from: type=gha,scope=calcom-${{ env.CLINIC }}
+          cache-to: type=gha,mode=max,scope=calcom-${{ env.CLINIC }}
+
+      - name: Discover private subnets + ECS security group
+        id: net
+        run: |
+          set -euo pipefail
+          PRIV=$(aws ec2 describe-subnets \
+            --filters "Name=tag:Name,Values=${CLINIC}-vpc-private-*" \
+            --query 'Subnets[].SubnetId' --output text | tr '\t' ',')
+          ECSSG=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=${CLINIC}-ecs-sg" \
+            --query 'SecurityGroups[0].GroupId' --output text)
+          [ -n "$PRIV" ] && [ "$ECSSG" != "None" ] || { echo "::error::network lookup failed"; exit 1; }
+          echo "subnets=$PRIV" >> "$GITHUB_OUTPUT"
+          echo "sg=$ECSSG"     >> "$GITHUB_OUTPUT"
+
+      - name: Run Prisma migration task (gate)
+        run: |
+          set -euo pipefail
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" --launch-type FARGATE \
+            --task-definition "$MIGRATE_TASKDEF" \
+            --started-by "gha-${GITHUB_RUN_ID}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.net.outputs.subnets }}],securityGroups=[${{ steps.net.outputs.sg }}],assignPublicIp=DISABLED}" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "migration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+          EXIT=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          echo "migration exit code: $EXIT"
+          [ "$EXIT" = "0" ] || { echo "::error::Prisma migration failed (exit $EXIT) — service not rolled"; exit 1; }
+
+      - name: Roll the Cal.com service
+        run: |
+          set -euo pipefail
+          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
+            --force-new-deployment >/dev/null
+          echo "waiting for $SERVICE to reach steady state…"
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
+          echo "✅ $SERVICE deployed ${{ steps.ref.outputs.tag }}"

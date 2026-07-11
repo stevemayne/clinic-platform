@@ -11,6 +11,9 @@ The base installation set for standing up **HIPAA-compliant clinic environments*
 - **RECOMMENDATIONS.md** — architecture rationale: HIPAA stack, vendor compliance, EHR/billing strategy, data co-op.
 - **implementation.md** — the build spec: packaging decision, module catalog, per-clinic model, milestones (M0–M6), open decisions. **The source of truth for what we're building and why.**
 - **COSTS.md** — per-tenant AWS cost model (shared vs per-client).
+- **TODO.md** — the live work list for picking up in a fresh session (remaining milestones, pre-apply steps, CI/CD). Check here for what's next.
+- **DEPLOY.md** — ordered, copy-pasteable runbook for standing up the ACC clinic (bootstrap → two-phase apply → DB init → Cal.com image/migrate → verify). The step-by-step counterpart to TODO.md §1.
+- **CALCOM_IMAGE.md** — how to source, pin, and build the per-clinic Cal.com image (build-time `NEXT_PUBLIC_WEBAPP_URL`, upstream ref pinning, ECR tagging, build resource needs). Prerequisite for DEPLOY.md §8 and the CI image-build workflow. The pinned upstream ref lives in **CALCOM_REF**.
 - **terraform/** — the implementation. See `terraform/README.md`.
 
 When a change affects architecture or cost, update the relevant doc in the same change.
@@ -57,7 +60,7 @@ Always `fmt -recursive` and `validate` (acc + _template) after changes. A real a
 
 - Containers on **ECS Fargate** (not AMIs/Marketplace/Ansible).
 - **One n8n instance per clinic** (n8n has no real multi-tenancy).
-- **Cal.com = self-hosted Cal.diy (MIT), free.** Not AGPL anymore (changed April 2026). Commercial license only if Teams/SSO are needed.
+- **Cal.com = self-hosted Cal.diy (MIT), free.** Commercial license only if Teams/SSO are needed. **Caveat (verified 2026-07):** the MIT relicense (April 2026) lives only on the untagged `main` branch — the newest *tag*, `v6.2.0`, is still AGPLv3+ee. So we build from `main` pinned to a commit SHA (recorded in `CALCOM_REF`) to get MIT; see `CALCOM_IMAGE.md`. Repo renamed `calcom/cal.com` → `calcom/cal.diy`.
 - **Claude via Amazon Bedrock** under the AWS BAA (one BAA covers compute + inference).
 - **No Org/landing-zone layer yet** — accounts are assumed to exist; bootstrap runs inside them. This is M6 (future).
 
@@ -68,6 +71,7 @@ Always `fmt -recursive` and `validate` (acc + _template) after changes. A real a
 - **n8n image** is pulled from the public registry for the PoC; ECR pull-through cache (needs a Docker Hub credential secret) is the documented production upgrade.
 - **n8n S3 external-storage credentials** — verify IAM-role vs access-key/secret model during testing.
 - **Cal.com (M3):** `NEXT_PUBLIC_WEBAPP_URL` is baked at **build time** → CI must build a per-clinic image; Prisma migrations run as a one-off ECS task.
+- **Author-identity commit guard:** `.githooks/pre-commit` blocks commits unless the author email matches the one hard-coded in the hook. It is opt-in — activate with `git config core.hooksPath .githooks`. If commits are unexpectedly rejected, that hook is why.
 
 ## Status
 
