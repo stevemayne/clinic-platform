@@ -44,7 +44,7 @@ cd terraform/scripts/bootstrap
 terraform init
 terraform apply \
   -var 'clinic=acc' \
-  -var 'github_repo=<owner>/acc'      # the GitHub repo allowed to assume CI roles
+  -var 'github_repo=<owner>/clinic-platform'  # this repo (owner/name) — the workflows run from here, not from a per-clinic repo
 ```
 
 Confirm the output:

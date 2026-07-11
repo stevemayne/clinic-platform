@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh run *)",
+      "Bash(gh repo *)",
+      "Bash(git -C /Users/steve/code/home/clinic-platform remote -v)",
+      "Bash(aws configure *)",
+      "Bash(export AWS_PROFILE=acc)",
+      "Bash(ls /opt/homebrew/bin | grep -i -E \"terraform|tofu\"; ls ~/.local/bin 2>/dev/null | grep -i terraform)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//Users/steve/.local/**)",
+      "Bash(command -v tfenv tofu terragrunt)",
+      "Read(//usr/local/bin/**)"
+    ]
+  }
+}

@@ -12,5 +12,5 @@ variable "aws_region" {
 variable "github_repo" {
   description = "GitHub repo (owner/name) allowed to assume the CI roles via OIDC."
   type        = string
-  default     = "your-org/acc"
+  default     = "stevemayne/clinic-platform"
 }
