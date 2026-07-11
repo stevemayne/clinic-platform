@@ -1,0 +1,110 @@
+name: terraform-ci
+
+# fmt + validate on every change (no credentials), then per-clinic plan on PRs
+# and apply on main, OIDC-assuming each clinic account's
+# `terraform-github-actions-role` (created by scripts/bootstrap).
+#
+# NOT for a clinic's first-ever apply: that is manual by design — bootstrap must
+# run first (state bucket + this role), and the initial apply is two-phase
+# (create the hosted zone, delegate NS at the registrar, then apply the rest;
+# see DEPLOY.md §3–5). CI takes over from the second apply onward.
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - .github/workflows/terraform-ci.yml
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - .github/workflows/terraform-ci.yml
+
+permissions:
+  id-token: write                     # OIDC → terraform-github-actions-role
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+  AWS_REGION: us-east-1
+
+jobs:
+  # --- No credentials needed: formatting + validate every env -----------------
+  fmt-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.13.1"   # matches required_version in versions.tf
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive terraform
+
+      - name: validate all envs (backendless) + bootstrap
+        run: |
+          set -euo pipefail
+          for dir in terraform/envs/*/ terraform/scripts/bootstrap; do
+            echo "::group::validate $dir"
+            terraform -chdir="$dir" init -backend=false -input=false >/dev/null
+            terraform -chdir="$dir" validate
+            echo "::endgroup::"
+          done
+
+  # --- Per-clinic plan (PRs) / apply (main) -----------------------------------
+  plan-apply:
+    needs: fmt-validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # One entry per real clinic env (never _template).
+        # Adding a clinic = add a row after its bootstrap has been run.
+        clinic:
+          - slug: acc
+            account_id: "185818464031"
+    # Serialize per clinic so two runs can't fight over state (the S3 lockfile
+    # would block anyway; this avoids a failed run instead of a queued one).
+    concurrency:
+      group: terraform-${{ matrix.clinic.slug }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: terraform/envs/${{ matrix.clinic.slug }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.13.1"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ matrix.clinic.account_id }}:role/terraform-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: terraform init
+        run: terraform init -input=false
+
+      - name: terraform plan
+        id: plan
+        run: |
+          set -o pipefail
+          terraform plan -input=false -no-color -out=tfplan 2>&1 | tee plan.txt
+
+      - name: Publish plan to run summary
+        if: always() && steps.plan.outcome != 'skipped'
+        run: |
+          {
+            echo "## \`${{ matrix.clinic.slug }}\` plan"
+            echo '```'
+            # Keep the summary within GitHub's limits on huge plans.
+            tail -c 60000 plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: terraform apply (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: terraform apply -input=false -auto-approve tfplan

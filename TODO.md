@@ -37,7 +37,7 @@ Outstanding work for the clinic platform, for picking up in a fresh session. Rea
 
 ## 3. CI/CD (`.github/workflows`) — not started
 
-- [ ] **terraform-ci** workflow: matrix over clinics (env name + clinic account role ARN + region), `tf_working_dir = envs/<clinic>`, OIDC auth, PR-plan / main-apply.
+- [x] **terraform-ci** workflow — drafted at [.github/workflows/terraform-ci.yml](.github/workflows/terraform-ci.yml): credential-less fmt + backendless validate of every env + bootstrap, then per-clinic matrix (ACC only today) OIDC → `terraform-github-actions-role`, plan on PRs (published to the run summary), apply of the saved plan on main. Serialized per clinic via concurrency groups. **Untested against a real account**; a clinic's *first* apply stays manual (bootstrap + two-phase zone delegation, DEPLOY.md §3–5) — CI takes over from the second apply. Consider gating apply behind a GitHub `production` environment approval later.
 - [x] **Cal.com image build** workflow — drafted at [.github/workflows/calcom-image.yml](.github/workflows/calcom-image.yml): OIDC → `github-ci-role`, builds from the pinned `CALCOM_REF` SHA (MIT-license guard), pushes `:latest` + `:main-<sha>` to the clinic's ECR, gates on the Prisma migrate task exit code, then force-new-deployment + wait for stable. Matrixed over clinics (ACC only today). **Untested against a real account** — verify once ACC is applied; watch build RAM (~6 GB heap) on `ubuntu-latest` and bump to a larger runner if it OOMs.
 - [ ] **n8n workflow library** deploy: store workflows as JSON in-repo, deploy to each clinic's n8n via its public API, parameterized per clinic (board IDs, domains, credential names).
 - [ ] Stand up the shared `ci-templates` repo (or inline the reusable workflows).
