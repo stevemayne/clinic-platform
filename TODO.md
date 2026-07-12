@@ -2,7 +2,7 @@
 
 Outstanding work for the clinic platform, for picking up in a fresh session. Read [CLAUDE.md](CLAUDE.md) first, then [implementation.md](implementation.md) (build spec / milestones) and [RECOMMENDATIONS.md](RECOMMENDATIONS.md) (architecture + business decisions).
 
-**Where we are:** M0–M3 of the Terraform are built and `validate` clean — bootstrap, `network`, `ecs_cluster`, `data`, `ingress`, `n8n_service`, `calcom_service`, wired into `envs/acc` and `envs/_template`. Bootstrap has been applied to the real ACC account (`185818464031`) and the first `envs/acc` apply is underway — temporarily downsized to the AWS free plan (see §1).
+**Where we are:** M0–M4 of the Terraform are built and `validate` clean — bootstrap, `network`, `ecs_cluster`, `data`, `ingress`, `n8n_service`, `calcom_service`, `chat_service` (Open WebUI + LiteLLM → Bedrock), wired into `envs/acc` and `envs/_template`. ACC (`185818464031`) is live: n8n at `automate.acc.secureclinic.co` (renamed from `n8n.*` — Chrome phishing heuristic), Cal.com, and chat deployed — temporarily downsized to the AWS free plan (see §1).
 
 ---
 
@@ -16,19 +16,18 @@ Outstanding work for the clinic platform, for picking up in a fresh session. Rea
 - [ ] **Revert the temporary free-plan RDS sizing** in [terraform/envs/acc/locals.tf](terraform/envs/acc/locals.tf) (`db.t4g.micro`, 20 GB, autoscaling off, 1-day backups, Performance Insights off) once the account moves off the AWS free plan — **before real PHI lands**: 1-day backup retention is below the platform's HIPAA posture. The `data` module defaults are the production values; deleting the override block restores them.
 - [x] Set the real domain in [terraform/envs/acc/locals.tf](terraform/envs/acc/locals.tf) — `domain_name = "acc.secureclinic.co"` (apex `secureclinic.co`, registered, DNS at GoDaddy).
 - [ ] **Two-phase apply** (ACM validation runs in-apply, so the zone must exist and be delegated first): (a) `terraform apply -target=aws_route53_zone.public` to create the zone and emit `name_servers`; (b) in **GoDaddy DNS for `secureclinic.co`**, add an `NS` record for host `acc` → the 4 zone name servers, wait for propagation; (c) `terraform apply` for the rest.
-- [ ] **Google Workspace OAuth client (M4/chat):** ACC's Workspace admin creates an OpenID Connect / OAuth 2.0 client in ACC's Google Cloud project (consent screen = Internal), redirect URI `https://chat.acc.secureclinic.co/oauth/google/callback`; hand over client ID + secret for the `chat_oauth_client_secret` placeholder. Per-clinic onboarding dependency.
+- [ ] **Google Workspace OAuth client (M4/chat):** ACC's Workspace admin creates an OpenID Connect / OAuth 2.0 client in ACC's Google Cloud project (consent screen = Internal), redirect URI `https://chat.acc.secureclinic.co/oauth/oidc/callback` (the `chat_oidc_redirect_uri` output — Open WebUI's generic-OIDC path, not `/oauth/google/callback` as originally speced); client secret → `acc/chat_oauth_client_secret`, client ID + Workspace domain → `chat_oauth_client_id` / `chat_oauth_allowed_domains` in `envs/acc/locals.tf`, then apply + `update-service` (DEPLOY.md §11). **Until then chat runs with local login — claim the admin account.** Per-clinic onboarding dependency.
 - [ ] Populate the Secrets Manager placeholders (see §5).
 
 ---
 
 ## 2. Terraform — remaining build
 
-- [ ] **M4 — `bedrock_access` module:** IAM policy/role for `bedrock:InvokeModel` (n8n already has it inline in its task role; factor out / extend for the chat service and confirm region + model access is enabled in the account).
-- [ ] **M4 — `chat_service` module (LibreChat or Open WebUI):** Fargate service at `chat.<domain>`, pointed at Bedrock, clinical prompt templates. Mirror `n8n_service` structure.
-  - Auth = **Google Workspace via OpenID Connect** (LibreChat generic `OPENID_*`, issuer `https://accounts.google.com`, scopes `openid email profile`), **SSO-only** (disable local signup), restrict sign-in by validating the `hd` claim against the clinic's Workspace domain, JIT provisioning. Generic OIDC (not the Google-specific connector) keeps it IdP-agnostic.
-  - Add a `chat_oauth_client_secret` Secrets Manager placeholder (client ID is non-sensitive config); inject via ECS `secrets`.
-  - Redirect URI = `https://chat.<clinic>.<apex>/oauth/google/callback` (ACC: `https://chat.acc.secureclinic.co/oauth/google/callback`).
-  - **Note:** Google SSO is free for LibreChat (MIT); Cal.com SSO is a commercial-license feature and n8n SSO is Enterprise-tier — don't assume one login spans all three apps for free.
+- [x] **M4 — Bedrock access:** no separate `bedrock_access` module — `bedrock:InvokeModel` statements live inline in the n8n + chat task roles (scoped to Anthropic foundation-model + inference-profile ARNs), plus the `<clinic>-n8n-bedrock` IAM user for n8n's key-based credential. Model access confirmed enabled in the ACC account (2026-07).
+- [x] **M4 — `chat_service` module:** built 2026-07 — **Open WebUI** (not LibreChat: it hard-requires MongoDB → DocumentDB ~$60+/mo or self-managed mongod holding PHI; Open WebUI reuses the encrypted RDS — `chatui` DB + pgvector RAG store) with a **LiteLLM sidecar** proxying OpenAI-compatible calls to Bedrock (model list = Terraform-owned S3 config object; task-role creds, no keys). Fargate service at `chat.<domain>`, mirrors `n8n_service` structure.
+  - Auth = **Google Workspace via generic OIDC** (`OAUTH_*`/`OPENID_*`, issuer `https://accounts.google.com`), SSO-only once `chat_oauth_client_id` is set (local-login bootstrap until then), `OAUTH_ALLOWED_DOMAINS` = Workspace domain, JIT provisioning. Redirect URI = `/oauth/oidc/callback` (see §1 item). Secrets: `chat_database_url`, `chat_webui_secret_key`, `chat_oauth_client_secret`, `chat_litellm_master_key`.
+  - Clinical prompt templates still to be loaded (Open WebUI workspace prompts/models) — onboarding-runbook material.
+  - **Note:** Google SSO is free in Open WebUI; Cal.com SSO is a commercial-license feature and n8n SSO is Enterprise-tier — don't assume one login spans all three apps for free.
 - [ ] **M5 — Productize:** finalize `envs/_template`, write the onboarding runbook, and dry-run a second clinic into a fresh account to prove replication.
 - [ ] **ECR pull-through cache for n8n** (production upgrade): add the `aws_ecr_pull_through_cache_rule` (Docker Hub upstream — needs a Docker Hub credential secret), then point `var.n8n_image` at the cache URI and pin by digest. Documented inline in [terraform/modules/n8n_service/main.tf](terraform/modules/n8n_service/main.tf).
 - [ ] **Tighten the execution-role secret/KMS access** in [terraform/modules/ecs_cluster/main.tf](terraform/modules/ecs_cluster/main.tf) from `"*"` to specific secret + key ARNs.
@@ -47,19 +46,20 @@ Outstanding work for the clinic platform, for picking up in a fresh session. Rea
 
 ## 4. Verify during M2/M3 testing (caveats baked into the code)
 
-- [x] **DB roles/databases are NOT created by Terraform.** Done for ACC (2026-07) via a one-off Fargate task (`postgres:17-alpine`, private subnets, `acc-ecs-sg`, passwords injected via ECS `secrets`); SQL per DEPLOY.md §7 — note the `GRANT <role> TO postgres` now documented there (required on RDS PG 16+).
+- [x] **DB roles/databases are NOT created by Terraform.** Done for ACC (2026-07) via a one-off Fargate task (`postgres:17-alpine`, private subnets, `acc-ecs-sg`, passwords injected via ECS `secrets`); SQL per DEPLOY.md §7 — note the `GRANT <role> TO postgres` now documented there (required on RDS PG 16+). The `chatui` DB additionally needs `CREATE EXTENSION vector` (pgvector, for Open WebUI's RAG store).
 - [x] **n8n binary-data storage:** S3 external storage turned out to be **Enterprise-licensed** (verified 2026-07 on 2.29.10) — community edition refuses to start with it. Now using n8n 2.x `database` mode (binary data in the encrypted RDS; persistent, unlicensed). The binary bucket + task-role S3 grant remain for a future licensed upgrade — mechanism confirmed: `N8N_EXTERNAL_STORAGE_S3_AUTH_AUTO_DETECT=true` (task IAM role, needs 2.x). See [terraform/modules/n8n_service/main.tf](terraform/modules/n8n_service/main.tf).
 - [x] **Cal.com health-check path + matcher:** verified — `/` returns 307 (→ `/auth/login`), which the `200-399` matcher accepts.
 - [x] **Cal.com migrate command:** verified against the pinned image — needed `DATABASE_DIRECT_URL` set alongside `DATABASE_URL` (both from the same secret; no pooler).
 - [x] **Cal.com first-apply** build→migrate→deploy order confirmed end to end via the calcom-image workflow (2026-07); setup wizard reachable at `/auth/setup`.
-- [ ] Confirm Bedrock model access is enabled and the `bedrock-runtime` VPC endpoint resolves from private subnets.
-- [ ] **Harden DB TLS verification:** both apps connect to RDS over TLS but skip certificate verification (`PGSSLMODE=no-verify` for Cal.com, `DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED=false` for n8n) because the RDS CA bundle isn't in the images' trust store. Ship the bundle (bake into image or mount) and switch to verified TLS.
+- [ ] Confirm Bedrock model access is enabled and the `bedrock-runtime` VPC endpoint resolves from private subnets. (Model access confirmed 2026-07 with a live invoke; the VPC-endpoint path gets verified by the first chat/n8n Bedrock call from a task.)
+- [ ] **Harden DB TLS verification:** all three apps connect to RDS over TLS but skip certificate verification (`PGSSLMODE=no-verify` for Cal.com, `DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED=false` for n8n, `sslmode=require` for chat) because the RDS CA bundle isn't in the images' trust store. Ship the bundle (bake into image or mount) and switch to verified TLS.
+- [ ] **Chat scale-out caveat:** `chat_service` is pinned to `desired_count = 1` — Open WebUI needs a Redis broker + sticky sessions to run multiple replicas. Fine for a single clinic; revisit if a large clinic needs HA chat.
 
 ---
 
 ## 5. Per-clinic operational steps (onboarding runbook material)
 
-- [x] Populate Secrets Manager placeholders — done for ACC (2026-07). `calcom_database_url` carries `?sslmode=no-verify` (see the DB-TLS hardening item in §4). **Still outstanding: back up `acc/n8n_encryption_key` outside AWS — losing it bricks n8n credentials.**
+- [x] Populate Secrets Manager placeholders — done for ACC (2026-07), including the chat secrets (`chat_database_url` with `?sslmode=require`, `chat_webui_secret_key`, `chat_litellm_master_key`). `calcom_database_url` carries `?sslmode=no-verify` (see the DB-TLS hardening item in §4). `chat_oauth_client_secret` is still the placeholder — populated at SSO cutover (DEPLOY.md §11). **Still outstanding: back up `acc/n8n_encryption_key` outside AWS — losing it bricks n8n credentials.**
 - [x] RDS master password is AWS-managed — used for the ACC DB init step.
 - [ ] Migrate ACC's existing Make.com scenarios into n8n (intake → consents → insurance verification → scheduling → discharge).
 

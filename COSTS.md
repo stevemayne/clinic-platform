@@ -35,8 +35,8 @@ These live in the management / shared-services account and get cheaper *per clie
 |---|---|---|
 | n8n — ECS Fargate | 1 vCPU / 2 GB, always-on | 36 |
 | Cal.com (scheduling) — ECS Fargate | 1 vCPU / 2 GB, always-on; shares RDS + ALB | 36 |
-| Chat UI — ECS Fargate | 0.5 vCPU / 1 GB, always-on | 18 |
-| RDS Postgres | db.t4g.small single-AZ, ~30 GB gp3 + backups; hosts `n8n` + `calcom` DBs | 29 |
+| Chat UI — ECS Fargate | 1 vCPU / 2 GB, always-on (Open WebUI + LiteLLM sidecar; local embedding model needs the 2 GB) | 36 |
+| RDS Postgres | db.t4g.small single-AZ, ~30 GB gp3 + backups; hosts `n8n` + `calcom` + `chatui` DBs | 29 |
 | Application Load Balancer | 1 shared, host-based routing (n8n / Cal.com / chat) | 20 |
 | Networking | 1 NAT Gateway + VPC interface endpoints (Bedrock/ECR private) | 35 |
 | CloudWatch + CloudTrail | log ingestion/storage + audit trail | 12 |
@@ -45,7 +45,7 @@ These live in the management / shared-services account and get cheaper *per clie
 | Secrets Manager | ~9 secrets (incl. Cal.com) + ECR image storage | 4 |
 | Data transfer out | modest egress | 8 |
 | AWS Backup | beyond RDS automated backups | 5 |
-| **Fixed subtotal** | | **≈ $210** |
+| **Fixed subtotal** | | **≈ $228** |
 
 > **Free-plan note (2026-07):** while ACC is pre-launch on the AWS free plan, RDS is temporarily downsized (`db.t4g.micro`, 20 GB, autoscaling off, 1-day backups, no Performance Insights) — see TODO.md §1 for the revert item. The $29 RDS line above reflects the production spec.
 
@@ -67,38 +67,38 @@ Assumptions: ~15 clinicians, ~80 sessions/day × 22 days ≈ **1,760 sessions/mo
 
 | Scenario | Fixed infra | Bedrock | **Per-client AWS total** |
 |---|---|---|---|
-| **Lean** — small clinic, single-AZ, mostly Sonnet, lean Cal.com task | ~$170 | ~$70 | **≈ $240/mo** |
-| **Typical** — medium clinic, single-AZ | ~$210 | ~$170 | **≈ $380/mo** |
-| **Production-hardened** — Multi-AZ RDS, dual NAT (HA), heavy Opus | ~$290 | ~$400 | **≈ $690/mo** |
+| **Lean** — small clinic, single-AZ, mostly Sonnet, lean Cal.com task | ~$190 | ~$70 | **≈ $260/mo** |
+| **Typical** — medium clinic, single-AZ | ~$228 | ~$170 | **≈ $400/mo** |
+| **Production-hardened** — Multi-AZ RDS, dual NAT (HA), heavy Opus | ~$310 | ~$400 | **≈ $710/mo** |
 
 ---
 
 ## 3. Fully-loaded cost per client (shared amortized + per-client)
 
-Shared cost (~$100/mo) divided across N clients, plus the per-client total. Using the **typical ≈ $380** per-client figure:
+Shared cost (~$100/mo) divided across N clients, plus the per-client total. Using the **typical ≈ $400** per-client figure:
 
 | Clients signed | Shared cost / client | Per-client AWS | **Fully-loaded AWS / client / mo** |
 |---|---|---|---|
-| 1 (ACC alone) | $100 | $380 | **≈ $480** |
-| 3 | $33 | $380 | **≈ $413** |
-| 5 | $20 | $380 | **≈ $400** |
-| 10 | $10 | $380 | **≈ $390** |
-| 25 | $4 | $380 | **≈ $384** |
+| 1 (ACC alone) | $100 | $400 | **≈ $500** |
+| 3 | $33 | $400 | **≈ $433** |
+| 5 | $20 | $400 | **≈ $420** |
+| 10 | $10 | $400 | **≈ $410** |
+| 25 | $4 | $400 | **≈ $404** |
 
 **Takeaways:**
 
-- **A single client instance costs roughly $380/month in raw AWS** (typical), or ~$480 fully-loaded while ACC is the only client.
-- **Per-client cost falls toward ~$380** as the shared overhead amortizes — most of the gain is realized by ~5 clients. The shared AWS pool is small; the *real* economy of scale is your one-time build labor (workflow library, Terraform module) spread across the client base, which sits in setup fees rather than this AWS bill.
+- **A single client instance costs roughly $400/month in raw AWS** (typical), or ~$500 fully-loaded while ACC is the only client.
+- **Per-client cost falls toward ~$400** as the shared overhead amortizes — most of the gain is realized by ~5 clients. The shared AWS pool is small; the *real* economy of scale is your one-time build labor (workflow library, Terraform module) spread across the client base, which sits in setup fees rather than this AWS bill.
 - **Bedrock is the only line with no scale economy** — it's pure usage. Control it with model choice (Opus only where it matters) and prompt caching, not volume.
 
 ---
 
 ## The levers that move this most
 
-- **Model choice is the biggest lever.** Running clinician chat on Opus instead of Sonnet pushes that line from ~$77 to ~$130; all-Opus roughly doubles Bedrock. The "Opus for documentation, Sonnet/Haiku for chat and routing" split keeps a typical clinic near $380.
+- **Model choice is the biggest lever.** Running clinician chat on Opus instead of Sonnet pushes that line from ~$77 to ~$130; all-Opus roughly doubles Bedrock. The "Opus for documentation, Sonnet/Haiku for chat and routing" split keeps a typical clinic near $400.
 - **Prompt caching** cuts cached input up to 90%; clinical templates and system prompts are highly cacheable, so real Bedrock spend likely lands **below** these figures.
 - **Multi-AZ + dual NAT** ≈ **+$75/mo** for HA. Start ACC single-AZ; make HA a per-clinic upsell.
-- **Always-on Fargate** is now ~$90/mo of fixed cost across three tasks (n8n $36 + Cal.com $36 + chat $18). Scale n8n/Cal.com to zero off-hours only if a clinic has no overnight webhooks/scheduled jobs — though scheduling tools generally need to stay up.
+- **Always-on Fargate** is now ~$108/mo of fixed cost across three tasks (n8n $36 + Cal.com $36 + chat $36). Scale n8n/Cal.com to zero off-hours only if a clinic has no overnight webhooks/scheduled jobs — though scheduling tools generally need to stay up.
 
 ---
 

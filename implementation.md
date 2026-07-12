@@ -20,7 +20,7 @@ Both n8n and Cal.com ship official, well-maintained container images and are des
 | AWS Marketplace AMIs | ❌ | n8n community AMIs exist but lock us into someone else's packaging/licensing; Cal.com isn't meaningfully available; least control, hardest to replicate cleanly per clinic. |
 | Ansible on EC2 | ❌ | Config-management of long-lived mutable servers — the paradigm we're explicitly moving away from. Causes drift, undermines the "replicate identically per clinic" goal. |
 
-**Compute shape:** ECS Fargate services behind one ALB per clinic, with host-based routing (`n8n.<clinic>.<apex>`, `cal.<clinic>.<apex>`, `chat.<clinic>.<apex>`). Mirrors our standard ECS service module pattern.
+**Compute shape:** ECS Fargate services behind one ALB per clinic, with host-based routing (`automate.<clinic>.<apex>` for n8n, `cal.<clinic>.<apex>`, `chat.<clinic>.<apex>`). Mirrors our standard ECS service module pattern. (n8n is hosted at `automate.*` — hostnames containing "n8n" trip Chrome's lookalike/phishing warning.)
 
 ---
 
@@ -41,8 +41,7 @@ acc/
     │   ├── ecs_cluster/      # ECS cluster + shared task execution role + log groups
     │   ├── n8n_service/      # task def, service, target group, ECR pull-through ref, secrets
     │   ├── calcom_service/   # task def, service, target group, ECR repo, migration task, secrets
-    │   ├── chat_service/     # LibreChat/Open WebUI (phase 2 — stubbed)
-    │   └── bedrock_access/   # IAM policy for bedrock:InvokeModel from task roles
+    │   └── chat_service/     # Open WebUI + LiteLLM sidecar → Bedrock (bedrock_access folded into service task roles)
     ├── envs/
     │   ├── _template/        # copy this to onboard a clinic
     │   │   ├── main.tf       # module wiring
@@ -204,9 +203,9 @@ Everything clinic-specific lives in `locals.tf` + secrets + the Cal.com build ar
 
 1. **M0 — Scaffolding:** `terraform/` skeleton, `versions.tf`, providers, bootstrap script; stand up state for the ACC account.
 2. **M1 — Foundation:** `network`, `data`, `ecs_cluster`, `ingress` modules; ALB serving a placeholder 503.
-3. **M2 — n8n:** `n8n_service` module live at `n8n.acc.<apex>`, Postgres-backed, S3 binary data, secrets wired.
+3. **M2 — n8n:** `n8n_service` module live at `automate.acc.<apex>` (hostname changed from `n8n.*` — Chrome phishing heuristic), Postgres-backed, secrets wired.
 4. **M3 — Cal.com:** ✅ `calcom_service` module — per-clinic ECR repo, Fargate service at `cal.acc.<apex>`, one-off Prisma migration task. (CI image build wiring still to land in the `.github/workflows` step.)
-5. **M4 — Bedrock + chat (phase 2):** `bedrock_access` IAM; `chat_service` (LibreChat) module. **Auth = per-clinic Google Workspace via OpenID Connect** (LibreChat's generic `OPENID_*` provider, issuer `https://accounts.google.com`, scopes `openid email profile`), **SSO-only** (local signup disabled), sign-in restricted by validating the `hd` (hosted-domain) claim against the clinic's Workspace domain, JIT user provisioning. Redirect URI `https://chat.<clinic>.<apex>/oauth/google/callback`. Client secret via the Secrets Manager placeholder pattern (`chat_oauth_client_secret`); client ID is non-sensitive config. The OAuth client is created in the *clinic's own* Google Cloud project (consent screen = Internal) by their Workspace admin — a per-clinic onboarding dependency. Using generic OIDC (not LibreChat's Google-specific connector) keeps the module IdP-agnostic: a future clinic on Okta/Entra swaps only the issuer. Google sees identity claims only — no PHI crosses to Google.
+5. **M4 — Bedrock + chat (phase 2):** ✅ `chat_service` module — **Open WebUI, not LibreChat** (decided 2026-07: LibreChat hard-requires MongoDB, meaning DocumentDB at ~$60+/mo per clinic or a self-managed mongod holding PHI; Open WebUI runs on the existing encrypted RDS — app data + pgvector RAG store in a `chatui` database, uploads in the documents bucket under `chat/uploads/`). Bedrock is reached through a **LiteLLM sidecar** in the same task (OpenAI-compatible proxy; model list Terraform-owned as an S3 config object; task-role credentials — no access keys). A separate `bedrock_access` module became unnecessary — the `bedrock:InvokeModel` statements live inline in the service task roles. **Auth = per-clinic Google Workspace via OpenID Connect** (Open WebUI's generic `OAUTH_*`/`OPENID_*` provider, issuer `https://accounts.google.com`, scopes `openid email profile`), **SSO-only once the OAuth client is configured** (until then local login is the bootstrap fallback — claim the admin account), sign-in restricted via `OAUTH_ALLOWED_DOMAINS` = the clinic's Workspace domain on top of the Internal consent screen, JIT user provisioning. Redirect URI `https://chat.<clinic>.<apex>/oauth/oidc/callback` (the `chat_oidc_redirect_uri` env output — generic-OIDC path, **not** the `/oauth/google/callback` originally speced). Client secret via the Secrets Manager placeholder pattern (`chat_oauth_client_secret`); client ID is non-sensitive config (`chat_oauth_client_id` in env locals). The OAuth client is created in the *clinic's own* Google Cloud project (consent screen = Internal) by their Workspace admin — a per-clinic onboarding dependency. Generic OIDC keeps the module IdP-agnostic: a future clinic on Okta/Entra swaps only the issuer. Google sees identity claims only — no PHI crosses to Google.
 6. **M5 — Productize:** extract `envs/_template`, write onboarding runbook, dry-run a second clinic into a fresh account.
 7. **M6 — Org / landing-zone (future, scaling):** stand up AWS Organizations with an account-factory so new clinic accounts come pre-hardened (baseline SCPs, GuardDuty/Config/CloudTrail, centralized logging) rather than hand-created. **Not built yet** — currently clinic accounts are assumed to exist. Likely **AWS Control Tower** or a Terraform account-factory; our per-account `scripts/bootstrap` is the first piece. Becomes important once we're onboarding clinics regularly and need governance/audit at the Org level.
 

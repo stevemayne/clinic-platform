@@ -22,7 +22,7 @@ When a change affects architecture or cost, update the relevant doc in the same 
 
 ```
 terraform/
-├── modules/      network · ecs_cluster · data · ingress · n8n_service · calcom_service   (chat_service, bedrock_access = TODO)
+├── modules/      network · ecs_cluster · data · ingress · n8n_service · calcom_service · chat_service
 ├── envs/         acc (real PoC) · _template (copy-source for new clinics)
 └── scripts/bootstrap/   one-time per-account: state bucket + GitHub OIDC roles
 ```
@@ -62,11 +62,14 @@ Always `fmt -recursive` and `validate` (acc + _template) after changes. A real a
 - **One n8n instance per clinic** (n8n has no real multi-tenancy).
 - **Cal.com = self-hosted Cal.diy (MIT), free.** Commercial license only if Teams/SSO are needed. **Caveat (verified 2026-07):** the MIT relicense (April 2026) lives only on the untagged `main` branch — the newest *tag*, `v6.2.0`, is still AGPLv3+ee. So we build from `main` pinned to a commit SHA (recorded in `CALCOM_REF`) to get MIT; see `CALCOM_IMAGE.md`. Repo renamed `calcom/cal.com` → `calcom/cal.diy`.
 - **Claude via Amazon Bedrock** under the AWS BAA (one BAA covers compute + inference).
+- **Chat UI = Open WebUI + LiteLLM sidecar, not LibreChat** (decided 2026-07). LibreChat hard-requires MongoDB — DocumentDB (~$60+/mo per clinic) or a self-managed mongod holding PHI — while Open WebUI runs on the existing encrypted RDS (`chatui` DB + pgvector) and reaches Bedrock via a stateless LiteLLM proxy in the same task, on task-role creds. No separate `bedrock_access` module: invoke statements live inline in the service task roles.
+- **n8n is hosted at `automate.<clinic>.<apex>`, not `n8n.*`** — hostnames containing "n8n" trip Chrome's lookalike/phishing warning.
 - **No Org/landing-zone layer yet** — accounts are assumed to exist; bootstrap runs inside them. This is M6 (future).
 
 ## Gotchas
 
-- **DB roles/databases (`n8n`, `calcom`) are created by an app init step, not Terraform** — the RDS instance is private, so a TF Postgres provider can't reach it. Services crash-loop until the role + password (matching the `*_db_password` secret) exist.
+- **DB roles/databases (`n8n`, `calcom`, `chatui`) are created by an app init step, not Terraform** — the RDS instance is private, so a TF Postgres provider can't reach it. Services crash-loop until the role + password (matching the corresponding secret) exist. `chatui` also needs `CREATE EXTENSION vector` (pgvector, for Open WebUI's RAG store).
+- **Open WebUI persists env config to its DB on first boot** and then ignores env changes — the chat_service module sets `ENABLE_PERSISTENT_CONFIG=false` so the task definition stays authoritative. Keep it that way.
 - **RDS has `deletion_protection = true` and the state bucket has `prevent_destroy`** — both block `destroy` by design.
 - **n8n image** is pulled from the public registry for the PoC; ECR pull-through cache (needs a Docker Hub credential secret) is the documented production upgrade.
 - **n8n binary data is in `database` mode, not S3** — S3 external storage is Enterprise-licensed (verified 2026-07); community edition refuses to start with it. The binary bucket + task-role grant remain for a future licensed upgrade (task-role auth via `N8N_EXTERNAL_STORAGE_S3_AUTH_AUTO_DETECT`, needs n8n 2.x).
@@ -75,4 +78,4 @@ Always `fmt -recursive` and `validate` (acc + _template) after changes. A real a
 
 ## Status
 
-M0 (bootstrap) + M1 (network/ecs_cluster/data/ingress) + M2 (n8n_service) + M3 (calcom_service: per-clinic ECR repo, service, Prisma migration task) done and validated. **Next: M4 — Bedrock access IAM + chat_service (LibreChat), then CI/CD (`.github/workflows`).**
+M0 (bootstrap) + M1 (network/ecs_cluster/data/ingress) + M2 (n8n_service) + M3 (calcom_service: per-clinic ECR repo, service, Prisma migration task) + M4 (chat_service: Open WebUI + LiteLLM → Bedrock, Google-OIDC-ready) done and validated; ACC is live. **Next: chat SSO cutover (Workspace OAuth client), n8n workflow library, then M5 — productize / second-clinic dry-run.**

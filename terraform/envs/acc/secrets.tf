@@ -11,6 +11,11 @@ locals {
     calcom_nextauth_secret = "Cal.com NEXTAUTH_SECRET"
     calcom_encryption_key  = "Cal.com CALENDSO_ENCRYPTION_KEY"
     calcom_database_url    = "Full DATABASE_URL for Cal.com: postgresql://calcom:<pw>@<host>:5432/calcom"
+
+    chat_database_url        = "Full DATABASE_URL for Open WebUI: postgresql://chatui:<pw>@<host>:5432/chatui?sslmode=require"
+    chat_webui_secret_key    = "Open WebUI WEBUI_SECRET_KEY (JWT signing + at-rest encryption)"
+    chat_oauth_client_secret = "Google Workspace OAuth client secret for chat SSO"
+    chat_litellm_master_key  = "LiteLLM master key, must start with sk- (also Open WebUI's OPENAI_API_KEY)"
   }
 }
 

@@ -110,3 +110,37 @@ module "calcom" {
 
   tags = local.common_tags
 }
+
+module "chat" {
+  source = "../../modules/chat_service"
+
+  name_prefix = local.name_prefix
+  aws_region  = local.region
+
+  cluster_arn        = module.ecs_cluster.cluster_arn
+  execution_role_arn = module.ecs_cluster.execution_role_arn
+
+  vpc_id                = module.network.vpc_id
+  private_subnet_ids    = module.network.private_subnet_ids
+  ecs_security_group_id = module.network.ecs_security_group_id
+  alb_security_group_id = module.ingress.alb_security_group_id
+
+  https_listener_arn = module.ingress.https_listener_arn
+  alb_dns_name       = module.ingress.alb_dns_name
+  alb_zone_id        = module.ingress.alb_zone_id
+  zone_id            = aws_route53_zone.public.zone_id
+  domain_name        = local.domain_name
+
+  documents_bucket = module.data.documents_bucket
+  kms_key_arn      = module.data.kms_key_arn
+
+  oauth_client_id             = local.chat_oauth_client_id
+  oauth_allowed_email_domains = local.chat_oauth_allowed_domains
+
+  database_url_secret_arn       = aws_secretsmanager_secret.app["chat_database_url"].arn
+  webui_secret_key_secret_arn   = aws_secretsmanager_secret.app["chat_webui_secret_key"].arn
+  oauth_client_secret_arn       = aws_secretsmanager_secret.app["chat_oauth_client_secret"].arn
+  litellm_master_key_secret_arn = aws_secretsmanager_secret.app["chat_litellm_master_key"].arn
+
+  tags = local.common_tags
+}

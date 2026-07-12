@@ -47,7 +47,29 @@
       "Skill(claude-api:*)",
       "Bash(aws bedrock *)",
       "Bash(curl -s \"https://raw.githubusercontent.com/n8n-io/n8n/n8n%402.29.10/packages/nodes-base/credentials/Aws.credentials.ts\")",
-      "Bash(aws bedrock-runtime *)"
+      "Bash(aws bedrock-runtime *)",
+      "WebFetch(domain:docs.openwebui.com)",
+      "Bash(AWS_PROFILE=acc aws bedrock list-inference-profiles --region us-east-1 --query \"inferenceProfileSummaries[?contains\\(inferenceProfileId,'anthropic'\\)].inferenceProfileId\" --output text)",
+      "Bash(zsh -lc 'gh api \"repos/open-webui/docs/git/trees/main?recursive=1\" --jq \".tree[].path\" | grep -i \"env-config\\\\|sso\\\\|auth\" | head -20')",
+      "Bash(curl -s \"https://api.github.com/repos/open-webui/docs/git/trees/main?recursive=1\")",
+      "Bash(/opt/homebrew/bin/jq -r '.tree[].path')",
+      "Bash(curl -s -o /private/tmp/claude-501/-Users-steve-code-home-clinic-platform/9e6f60e0-6cae-41d8-9751-789e675c4ff0/scratchpad/owui-tree.json -w \"%{http_code}\" \"https://api.github.com/repos/open-webui/docs/git/trees/main?recursive=1\")",
+      "Bash(curl -s https://raw.githubusercontent.com/open-webui/docs/main/docs/reference/env-configuration.mdx -o /private/tmp/claude-501/-Users-steve-code-home-clinic-platform/9e6f60e0-6cae-41d8-9751-789e675c4ff0/scratchpad/owui-env.mdx)",
+      "Bash(grep -nE '^#{2,4} ' /private/tmp/claude-501/-Users-steve-code-home-clinic-platform/9e6f60e0-6cae-41d8-9751-789e675c4ff0/scratchpad/owui-env.mdx)",
+      "Bash(grep -nE '^#{2,4} |^## ' /private/tmp/claude-501/-Users-steve-code-home-clinic-platform/9e6f60e0-6cae-41d8-9751-789e675c4ff0/scratchpad/owui-env.mdx)",
+      "Bash(grep -nE '^#{2,4} .*\\(DATABASE_URL|STORAGE_PROVIDER\\)' /private/tmp/claude-501/-Users-steve-code-home-clinic-platform/9e6f60e0-6cae-41d8-9751-789e675c4ff0/scratchpad/owui-env.mdx)",
+      "WebFetch(domain:docs.litellm.ai)",
+      "Bash(curl -s https://api.github.com/repos/open-webui/open-webui/releases/latest)",
+      "Bash(python3 -c \"import json,sys; r=json.load\\(sys.stdin\\); print\\(r['tag_name'], r['published_at']\\)\")",
+      "Bash(curl -s https://api.github.com/repos/BerriAI/litellm/releases/latest)",
+      "Bash(zsh -lc 'cd /Users/steve/code/home/clinic-platform/terraform && terraform fmt -recursive && cd envs/acc && terraform init -backend=false -input=false >/dev/null 2>&1 && terraform validate && cd ../_template && terraform init -backend=false -input=false >/dev/null 2>&1 && terraform validate')",
+      "Bash(zsh -lc 'cd /Users/steve/code/home/clinic-platform/terraform/envs/acc && terraform init -backend=false -input=false 2>&1 | tail -5; terraform validate 2>&1 | tail -30')",
+      "Bash(zsh -lc 'cd /Users/steve/code/home/clinic-platform/terraform/envs/_template && terraform init -backend=false -input=false >/dev/null 2>&1; terraform validate 2>&1 | tail -20')",
+      "Bash(grep -n \"380\\\\|\\\\$210\\\\|\\\\$240\\\\|\\\\$690\" /Users/steve/code/home/clinic-platform/COSTS.md)",
+      "Bash(python3 -)",
+      "Bash(zsh -lc 'cd /Users/steve/code/home/clinic-platform/terraform/envs/acc && AWS_PROFILE=acc terraform init -reconfigure -input=false 2>&1 | tail -3 && AWS_PROFILE=acc terraform plan -input=false -out=tfplan 2>&1 | grep -E \"will be|must be|Plan:|Error\" | head -40')",
+      "Bash(zsh -lc 'cd /Users/steve/code/home/clinic-platform/terraform/envs/acc && AWS_PROFILE=acc terraform apply -input=false tfplan 2>&1 | grep -E \"Creating|Creation complete|Destroying|Destruction complete|Modifying|Modifications complete|Apply complete|Error\" | tail -50')",
+      "Bash(AWS_PROFILE=acc aws ecs list-task-definitions --region us-east-1 --output text)"
     ]
   }
 }

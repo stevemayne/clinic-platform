@@ -15,7 +15,7 @@ The **chat service (M4)** and its Google Workspace OIDC auth are **not built yet
 | Clinic domain | `acc.secureclinic.co` |
 | Apex (DNS at GoDaddy) | `secureclinic.co` |
 | State bucket (deterministic) | `tfstate-acc-185818464031` |
-| Service URLs | `n8n.acc.secureclinic.co` · `cal.acc.secureclinic.co` · `chat.acc.secureclinic.co` (M4) |
+| Service URLs | `automate.acc.secureclinic.co` (n8n) · `cal.acc.secureclinic.co` · `chat.acc.secureclinic.co` |
 
 Every AWS CLI call below assumes `--profile acc --region us-east-1`. Every Terraform call runs from `terraform/envs/acc` unless stated.
 
@@ -119,7 +119,7 @@ terraform output
 
 ## 6. Populate the Secrets Manager placeholders
 
-Five secrets, named `acc/<key>`. Generate strong random values; **back up `acc/n8n_encryption_key`** — losing it bricks all stored n8n credentials.
+Nine secrets, named `acc/<key>`. Generate strong random values; **back up `acc/n8n_encryption_key`** — losing it bricks all stored n8n credentials. (`acc/chat_oauth_client_secret` is the exception: its value comes from the Google OAuth client in [§11](#11-chat-open-webui--google-workspace-sso), not from openssl.)
 
 ```bash
 # Pick/generate values first (examples use openssl):
@@ -128,6 +128,9 @@ N8N_DB_PW=$(openssl rand -base64 24 | tr -d '/+=')
 CAL_NEXTAUTH=$(openssl rand -hex 32)
 CAL_ENC=$(openssl rand -base64 32)
 CAL_DB_PW=$(openssl rand -base64 24 | tr -d '/+=')
+CHAT_DB_PW=$(openssl rand -base64 24 | tr -d '/+=')
+CHAT_WEBUI_KEY=$(openssl rand -hex 32)
+LITELLM_KEY=sk-$(openssl rand -hex 24)   # LiteLLM requires the sk- prefix
 
 DB_HOST=$(terraform output -raw db_address)
 
@@ -142,9 +145,18 @@ aws secretsmanager put-secret-value --secret-id acc/calcom_encryption_key  --sec
 aws secretsmanager put-secret-value --secret-id acc/calcom_database_url \
   --secret-string "postgresql://calcom:${CAL_DB_PW}@${DB_HOST}:5432/calcom?sslmode=no-verify" \
   --profile acc --region us-east-1
+
+# Chat (Open WebUI + LiteLLM). sslmode=require: SQLAlchemy/psycopg2 speaks
+# libpq, which accepts require (TLS on, cert verification off — same
+# hardening TODO as above).
+aws secretsmanager put-secret-value --secret-id acc/chat_database_url \
+  --secret-string "postgresql://chatui:${CHAT_DB_PW}@${DB_HOST}:5432/chatui?sslmode=require" \
+  --profile acc --region us-east-1
+aws secretsmanager put-secret-value --secret-id acc/chat_webui_secret_key   --secret-string "$CHAT_WEBUI_KEY" --profile acc --region us-east-1
+aws secretsmanager put-secret-value --secret-id acc/chat_litellm_master_key --secret-string "$LITELLM_KEY"    --profile acc --region us-east-1
 ```
 
-The `calcom` role password is embedded in `calcom_database_url` and must match the role you create in [§7](#7-create-the-database-roles--databases). The `n8n` role uses `acc/n8n_db_password`.
+The `calcom`/`chatui` role passwords are embedded in their `*_database_url` secrets and must match the roles you create in [§7](#7-create-the-database-roles--databases). The `n8n` role uses `acc/n8n_db_password`.
 
 ---
 
@@ -185,6 +197,17 @@ CREATE ROLE calcom LOGIN PASSWORD '<the CAL_DB_PW embedded in calcom_database_ur
 GRANT calcom TO postgres;
 CREATE DATABASE calcom OWNER calcom;
 REVOKE calcom FROM postgres;
+
+CREATE ROLE chatui LOGIN PASSWORD '<the CHAT_DB_PW embedded in chat_database_url>';
+GRANT chatui TO postgres;
+CREATE DATABASE chatui OWNER chatui;
+REVOKE chatui FROM postgres;
+```
+
+Then, **connected to the `chatui` database** (`\c chatui` or a second psql invocation), enable pgvector — Open WebUI's RAG store (`VECTOR_DB=pgvector`) needs it:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
 > The exact connection mechanism (bastion vs one-off task) is a testing-time decision — the modules intentionally leave DB init out of Terraform. Whatever you choose, it must sit in the VPC on `acc-ecs-sg`.
@@ -249,9 +272,11 @@ aws ecs describe-services --cluster "$CLUSTER" --services acc-n8n acc-calcom \
   --query 'services[].{name:serviceName,running:runningCount,desired:desiredCount}' \
   --profile acc --region us-east-1
 
-curl -sI https://n8n.acc.secureclinic.co | head -1
+curl -sI https://automate.acc.secureclinic.co | head -1
 curl -sI https://cal.acc.secureclinic.co | head -1
 ```
+
+(n8n lives at `automate.*`, not `n8n.*` — hostnames containing "n8n" trip Chrome's lookalike/phishing warning.)
 
 Deployment complete for n8n + Cal.com.
 
@@ -274,12 +299,39 @@ Rotate by creating a second key, updating the n8n credential, then deleting the 
 
 ---
 
-## 11. Deferred — M4 chat + Google Workspace OIDC
+## 11. Chat (Open WebUI) — Google Workspace SSO
 
-Not built yet (see [TODO.md](TODO.md) §2 and [implementation.md](implementation.md) M4). When the `chat_service` module lands, the added steps are:
+The `chat_service` module (Open WebUI + a LiteLLM sidecar proxying to Bedrock) deploys with the Phase-B apply; it needs the `chatui` database from §7 and the three `chat_*` secrets from §6. Both containers use the **task role** for Bedrock and S3 — no access keys. Verify it's up:
 
-- **ACC Workspace admin** creates an OpenID Connect / OAuth 2.0 client in ACC's Google Cloud project (consent screen = **Internal**), redirect URI `https://chat.acc.secureclinic.co/oauth/google/callback`.
-- Add a `chat_oauth_client_secret` Secrets Manager placeholder and populate it with the client secret (client ID is non-sensitive config).
-- Configure LibreChat's generic `OPENID_*` provider: issuer `https://accounts.google.com`, scopes `openid email profile`, **SSO-only** (disable local signup), restrict by validating the `hd` claim = ACC's Workspace domain.
+```bash
+curl -sI https://chat.acc.secureclinic.co | head -1   # expect 200
+```
 
-Google sees identity claims only — no PHI crosses to Google.
+**Until SSO is configured, the chat UI runs with local email/password login — the first account to sign up becomes admin. Claim it immediately.**
+
+To flip to SSO-only:
+
+1. **ACC Workspace admin** creates an OAuth 2.0 client in ACC's Google Cloud project (consent screen = **Internal** — this alone restricts sign-in to ACC's Workspace), redirect URI:
+
+   ```bash
+   terraform output -raw chat_oidc_redirect_uri
+   # → https://chat.acc.secureclinic.co/oauth/oidc/callback
+   ```
+
+   (Open WebUI's generic-OIDC callback path — note it is `/oauth/oidc/callback`, not the `/oauth/google/callback` path the original spec guessed.)
+
+2. Populate the client secret and set the non-sensitive config in [terraform/envs/acc/locals.tf](terraform/envs/acc/locals.tf) (`chat_oauth_client_id`, `chat_oauth_allowed_domains` = ACC's Workspace email domain):
+
+   ```bash
+   aws secretsmanager put-secret-value --secret-id acc/chat_oauth_client_secret \
+     --secret-string '<client secret from Google Cloud>' --profile acc --region us-east-1
+   ```
+
+3. `terraform apply` (registers a new task-definition revision — local login off, OIDC on), then point the service at it:
+
+   ```bash
+   aws ecs update-service --cluster "$CLUSTER" --service acc-chat \
+     --task-definition acc-chat --force-new-deployment --profile acc --region us-east-1
+   ```
+
+New SSO users are provisioned just-in-time as regular users; the pre-SSO local admin merges into its SSO identity by email. Google sees identity claims only — no PHI crosses to Google.

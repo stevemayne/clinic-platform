@@ -15,6 +15,15 @@ output "calcom_url" {
   value = module.calcom.url
 }
 
+output "chat_url" {
+  value = module.chat.url
+}
+
+output "chat_oidc_redirect_uri" {
+  description = "Give this to the clinic's Workspace admin when creating the Google OAuth client."
+  value       = module.chat.oidc_redirect_uri
+}
+
 output "calcom_ecr_repository_url" {
   description = "Push the per-clinic Cal.com image here from CI."
   value       = module.calcom.ecr_repository_url

@@ -96,9 +96,9 @@ variable "domain_name" {
 }
 
 variable "subdomain" {
-  description = "Subdomain label for n8n."
+  description = "Subdomain label for n8n. \"automate\" rather than \"n8n\": hosts with \"n8n\" in the name trip Chrome's lookalike/phishing warning (n8n is a common phishing-kit target)."
   type        = string
-  default     = "n8n"
+  default     = "automate"
 }
 
 # --- Data / secrets ---------------------------------------------------------
