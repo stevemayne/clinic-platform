@@ -39,7 +39,10 @@
       "Bash(curl -s \"https://raw.githubusercontent.com/n8n-io/n8n/n8n%401.70.0/packages/%40n8n/config/src/configs/external-storage.config.ts\")",
       "Bash(python3 -c 'import json,sys,re; tags=[t[\"name\"] for t in json.load\\(sys.stdin\\)[\"results\"]]; print\\([t for t in tags if re.fullmatch\\(r\"[0-9.]+\",t\\)][:10]\\)')",
       "Bash(curl -s \"https://raw.githubusercontent.com/n8n-io/n8n/master/packages/core/src/binary-data/binary-data.config.ts\")",
-      "Bash(curl -s \"https://raw.githubusercontent.com/n8n-io/n8n/n8n%402.29.10/packages/core/src/binary-data/binary-data.config.ts\")"
+      "Bash(curl -s \"https://raw.githubusercontent.com/n8n-io/n8n/n8n%402.29.10/packages/core/src/binary-data/binary-data.config.ts\")",
+      "Bash(curl -s -o /dev/null -w 'cal:  %{http_code} -> %{url_effective}\\\\n' -L --max-time 30 https://cal.acc.secureclinic.co)",
+      "Bash(curl -s -o /dev/null -w 'n8n:  %{http_code} -> %{url_effective}\\\\n' -L --max-time 30 https://n8n.acc.secureclinic.co)",
+      "Bash(git -C /Users/steve/code/home/clinic-platform status --short)"
     ]
   }
 }

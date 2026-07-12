@@ -69,7 +69,7 @@ Always `fmt -recursive` and `validate` (acc + _template) after changes. A real a
 - **DB roles/databases (`n8n`, `calcom`) are created by an app init step, not Terraform** — the RDS instance is private, so a TF Postgres provider can't reach it. Services crash-loop until the role + password (matching the `*_db_password` secret) exist.
 - **RDS has `deletion_protection = true` and the state bucket has `prevent_destroy`** — both block `destroy` by design.
 - **n8n image** is pulled from the public registry for the PoC; ECR pull-through cache (needs a Docker Hub credential secret) is the documented production upgrade.
-- **n8n S3 external-storage credentials** — verify IAM-role vs access-key/secret model during testing.
+- **n8n binary data is in `database` mode, not S3** — S3 external storage is Enterprise-licensed (verified 2026-07); community edition refuses to start with it. The binary bucket + task-role grant remain for a future licensed upgrade (task-role auth via `N8N_EXTERNAL_STORAGE_S3_AUTH_AUTO_DETECT`, needs n8n 2.x).
 - **Cal.com (M3):** `NEXT_PUBLIC_WEBAPP_URL` is baked at **build time** → CI must build a per-clinic image; Prisma migrations run as a one-off ECS task.
 - **Author-identity commit guard:** `.githooks/pre-commit` blocks commits unless the author email matches the one hard-coded in the hook. It is opt-in — activate with `git config core.hooksPath .githooks`. If commits are unexpectedly rejected, that hook is why.
 

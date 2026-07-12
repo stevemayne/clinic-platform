@@ -48,7 +48,7 @@ Outstanding work for the clinic platform, for picking up in a fresh session. Rea
 ## 4. Verify during M2/M3 testing (caveats baked into the code)
 
 - [x] **DB roles/databases are NOT created by Terraform.** Done for ACC (2026-07) via a one-off Fargate task (`postgres:17-alpine`, private subnets, `acc-ecs-sg`, passwords injected via ECS `secrets`); SQL per DEPLOY.md §7 — note the `GRANT <role> TO postgres` now documented there (required on RDS PG 16+).
-- [x] **n8n S3 external-storage credentials:** resolved — `N8N_EXTERNAL_STORAGE_S3_AUTH_AUTO_DETECT=true` makes n8n use the default AWS credential chain (task IAM role); no access keys. Also required: `N8N_AVAILABLE_BINARY_DATA_MODES=s3`. Both set in [terraform/modules/n8n_service/main.tf](terraform/modules/n8n_service/main.tf).
+- [x] **n8n binary-data storage:** S3 external storage turned out to be **Enterprise-licensed** (verified 2026-07 on 2.29.10) — community edition refuses to start with it. Now using n8n 2.x `database` mode (binary data in the encrypted RDS; persistent, unlicensed). The binary bucket + task-role S3 grant remain for a future licensed upgrade — mechanism confirmed: `N8N_EXTERNAL_STORAGE_S3_AUTH_AUTO_DETECT=true` (task IAM role, needs 2.x). See [terraform/modules/n8n_service/main.tf](terraform/modules/n8n_service/main.tf).
 - [x] **Cal.com health-check path + matcher:** verified — `/` returns 307 (→ `/auth/login`), which the `200-399` matcher accepts.
 - [x] **Cal.com migrate command:** verified against the pinned image — needed `DATABASE_DIRECT_URL` set alongside `DATABASE_URL` (both from the same secret; no pooler).
 - [x] **Cal.com first-apply** build→migrate→deploy order confirmed end to end via the calcom-image workflow (2026-07); setup wizard reachable at `/auth/setup`.

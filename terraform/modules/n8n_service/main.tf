@@ -54,15 +54,14 @@ resource "aws_ecs_task_definition" "n8n" {
         { name = "N8N_EDITOR_BASE_URL", value = "https://${local.fqdn}/" },
         { name = "GENERIC_TIMEZONE", value = var.timezone },
 
-        # Binary data to S3 (required for queue mode later). AUTH_AUTO_DETECT
-        # makes n8n use the AWS default credential chain (= the task IAM role)
-        # instead of demanding an access key/secret pair. Needs n8n 2.x (see
-        # var.n8n_image); 2.x also has s3 in the available modes by default.
-        { name = "N8N_DEFAULT_BINARY_DATA_MODE", value = "s3" },
-        { name = "N8N_EXTERNAL_STORAGE_S3_AUTH_AUTO_DETECT", value = "true" },
-        { name = "N8N_EXTERNAL_STORAGE_S3_HOST", value = "s3.${var.aws_region}.amazonaws.com" },
-        { name = "N8N_EXTERNAL_STORAGE_S3_BUCKET_NAME", value = var.binary_data_bucket },
-        { name = "N8N_EXTERNAL_STORAGE_S3_BUCKET_REGION", value = var.aws_region },
+        # Binary data in Postgres (`database` mode, n8n 2.x): persistent and
+        # unlicensed. S3 external storage is Enterprise-licensed (verified
+        # 2026-07 on 2.29.10: "S3 binary data storage requires a valid
+        # license"). The binary bucket + task-role S3 grant stay in place for
+        # a future licensed upgrade: flip mode to "s3" and set
+        # N8N_EXTERNAL_STORAGE_S3_HOST/_BUCKET_NAME/_BUCKET_REGION plus
+        # N8N_EXTERNAL_STORAGE_S3_AUTH_AUTO_DETECT=true (task-role auth).
+        { name = "N8N_DEFAULT_BINARY_DATA_MODE", value = "database" },
 
         # Keep PHI out of long-lived execution logs.
         { name = "EXECUTIONS_DATA_PRUNE", value = "true" },
