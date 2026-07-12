@@ -18,3 +18,8 @@ output "task_role_arn" {
 output "log_group_name" {
   value = aws_cloudwatch_log_group.n8n.name
 }
+
+output "bedrock_user_name" {
+  description = "IAM user for n8n's AWS credential (Bedrock). Create its access key out-of-band; see DEPLOY.md."
+  value       = aws_iam_user.bedrock.name
+}

@@ -42,7 +42,12 @@
       "Bash(curl -s \"https://raw.githubusercontent.com/n8n-io/n8n/n8n%402.29.10/packages/core/src/binary-data/binary-data.config.ts\")",
       "Bash(curl -s -o /dev/null -w 'cal:  %{http_code} -> %{url_effective}\\\\n' -L --max-time 30 https://cal.acc.secureclinic.co)",
       "Bash(curl -s -o /dev/null -w 'n8n:  %{http_code} -> %{url_effective}\\\\n' -L --max-time 30 https://n8n.acc.secureclinic.co)",
-      "Bash(git -C /Users/steve/code/home/clinic-platform status --short)"
+      "Bash(git -C /Users/steve/code/home/clinic-platform status --short)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(aws bedrock *)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/n8n-io/n8n/n8n%402.29.10/packages/nodes-base/credentials/Aws.credentials.ts\")",
+      "Bash(aws bedrock-runtime *)"
     ]
   }
 }

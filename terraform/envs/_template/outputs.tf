@@ -20,6 +20,11 @@ output "calcom_ecr_repository_url" {
   value       = module.calcom.ecr_repository_url
 }
 
+output "n8n_bedrock_user_name" {
+  description = "IAM user for n8n's AWS credential (Bedrock). Create its access key out-of-band; see DEPLOY.md §10."
+  value       = module.n8n.bedrock_user_name
+}
+
 output "ecs_cluster_name" {
   value = module.ecs_cluster.cluster_name
 }

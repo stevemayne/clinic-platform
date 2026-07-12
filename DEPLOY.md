@@ -257,7 +257,24 @@ Deployment complete for n8n + Cal.com.
 
 ---
 
-## 10. Deferred — M4 chat + Google Workspace OIDC
+## 10. n8n Bedrock credential (for AI workflow nodes)
+
+Terraform creates a per-clinic IAM user (`acc-n8n-bedrock`, in the `n8n_service` module) scoped to invoking Anthropic models. n8n's AWS credential type only supports access key/secret — the task IAM role can't be used for workflow credentials — so create the key out-of-band (it never lives in code or state, same philosophy as the secrets placeholders):
+
+```bash
+aws iam create-access-key \
+  --user-name "$(terraform output -raw n8n_bedrock_user_name)" \
+  --profile acc --region us-east-1
+# → AccessKeyId + SecretAccessKey (shown once)
+```
+
+In n8n: **Credentials → New → AWS**, paste the key pair, region `us-east-1`. Then use the **AWS Bedrock Chat Model** node (attached to an AI Agent / Basic LLM Chain). Model IDs must be **cross-region inference profiles** (`us.anthropic.*` — bare `anthropic.*` IDs are rejected for on-demand invocation): `us.anthropic.claude-opus-4-8` as the default, `us.anthropic.claude-haiku-4-5-20251001-v1:0` for cheap/high-volume steps. Traffic from the tasks reaches Bedrock via the private `bedrock-runtime` VPC endpoint; the first workflow call verifies that path end to end.
+
+Rotate by creating a second key, updating the n8n credential, then deleting the old key.
+
+---
+
+## 11. Deferred — M4 chat + Google Workspace OIDC
 
 Not built yet (see [TODO.md](TODO.md) §2 and [implementation.md](implementation.md) M4). When the `chat_service` module lands, the added steps are:
 
