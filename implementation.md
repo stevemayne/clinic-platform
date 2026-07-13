@@ -36,7 +36,7 @@ acc/
 └── terraform/
     ├── modules/
     │   ├── network/          # VPC, subnets, NAT, VPC endpoints, SGs (wraps terraform-aws-modules/vpc)
-    │   ├── data/             # RDS Postgres (n8n + calcom DBs), S3 buckets, KMS keys
+    │   ├── data/             # RDS Postgres (n8n + calcom + chatui DBs), S3 buckets, KMS keys
     │   ├── ingress/          # ALB (terraform-aws-modules/alb), ACM cert, Route53 records
     │   ├── ecs_cluster/      # ECS cluster + shared task execution role + log groups
     │   ├── n8n_service/      # task def, service, target group, ECR pull-through ref, secrets
@@ -89,15 +89,15 @@ n8n is very container-friendly. Run it in **main mode** (single task, no separat
 |---|---|
 | `DB_TYPE` | `postgresdb` |
 | `DB_POSTGRESDB_HOST/PORT/DATABASE/USER` | from `data` module outputs (RDS endpoint, `n8n` DB) |
-| `DB_POSTGRESDB_PASSWORD_FILE` | injected from Secrets Manager (use `_FILE` suffix / ECS `secrets` `valueFrom`) |
+| `DB_POSTGRESDB_PASSWORD` | injected from Secrets Manager via ECS `secrets` `valueFrom` (never a plain env value) |
 | `N8N_ENCRYPTION_KEY` | Secrets Manager (credential encryption — **back this up; losing it bricks stored credentials**) |
-| `N8N_HOST` / `WEBHOOK_URL` / `N8N_PROTOCOL` | `n8n.<clinic>.<apex>` / `https` |
-| `N8N_DEFAULT_BINARY_DATA_MODE` | `s3` → clinic S3 bucket (filesystem mode needs EFS on Fargate; S3 avoids that and is required for queue mode later) |
+| `N8N_HOST` / `WEBHOOK_URL` / `N8N_PROTOCOL` | `automate.<clinic>.<apex>` / `https` |
+| `N8N_DEFAULT_BINARY_DATA_MODE` | `database` — S3 external storage turned out to be **Enterprise-licensed** (verified 2026-07); binary data lives in the encrypted RDS. The binary bucket + task-role grant remain for a future licensed upgrade. |
 | `EXECUTIONS_DATA_PRUNE` / `..._MAX_AGE` | conservative retention — keep PHI out of long-lived execution logs |
 
 - **Postgres 13+** required (RDS Postgres satisfies this).
-- **Scaling path (documented, not built yet):** switch `EXECUTIONS_MODE=queue`, add ElastiCache Redis + worker tasks. Queue mode **requires** S3 binary-data mode (already set above), so we're forward-compatible.
-- **Secrets** never passed as plain env where avoidable — use the `_FILE` convention so values load from mounted secrets.
+- **Scaling path (documented, not built yet):** switch `EXECUTIONS_MODE=queue`, add ElastiCache Redis + worker tasks. Queue mode requires S3 binary-data mode — i.e. an n8n Enterprise license (see the binary-data row above) — so scaling out is gated on licensing, not infrastructure.
+- **Secrets** never passed as plain env — injected via ECS `secrets` (`valueFrom` a Secrets Manager ARN).
 
 Sources: [n8n Docker docs](https://docs.n8n.io/hosting/installation/docker/) · [n8n queue mode](https://docs.n8n.io/hosting/scaling/queue-mode/) · [n8n DB env vars](https://docs.n8n.io/hosting/configuration/environment-variables/database/)
 

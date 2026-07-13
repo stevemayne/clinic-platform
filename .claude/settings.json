@@ -69,7 +69,8 @@
       "Bash(python3 -)",
       "Bash(zsh -lc 'cd /Users/steve/code/home/clinic-platform/terraform/envs/acc && AWS_PROFILE=acc terraform init -reconfigure -input=false 2>&1 | tail -3 && AWS_PROFILE=acc terraform plan -input=false -out=tfplan 2>&1 | grep -E \"will be|must be|Plan:|Error\" | head -40')",
       "Bash(zsh -lc 'cd /Users/steve/code/home/clinic-platform/terraform/envs/acc && AWS_PROFILE=acc terraform apply -input=false tfplan 2>&1 | grep -E \"Creating|Creation complete|Destroying|Destruction complete|Modifying|Modifications complete|Apply complete|Error\" | tail -50')",
-      "Bash(AWS_PROFILE=acc aws ecs list-task-definitions --region us-east-1 --output text)"
+      "Bash(AWS_PROFILE=acc aws ecs list-task-definitions --region us-east-1 --output text)",
+      "Bash(grep -rn --include=\"*.md\" -iE \"n8n\\\\.acc|n8n\\\\.<|LibreChat or|five secrets|\\\\\\\\\\\\$380|\\\\\\\\\\\\$210\\\\b\" .)"
     ]
   }
 }

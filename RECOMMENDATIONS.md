@@ -61,8 +61,8 @@ AWS Organization (management account, AWS BAA signed)
 └── Clinic AWS account  (e.g. acc-prod)            ← per-clinic isolation boundary
     ├── VPC (private subnets, VPC endpoints, no public DB access)
     ├── ECS Fargate: n8n (self-hosted)
-    ├── ECS Fargate: chat UI (LibreChat or Open WebUI)
-    ├── RDS Postgres (encrypted, KMS) — n8n DB + clinical data store
+    ├── ECS Fargate: chat UI (Open WebUI + LiteLLM sidecar → Bedrock)
+    ├── RDS Postgres (encrypted, KMS) — n8n/calcom/chatui DBs + clinical data store
     ├── S3 (encrypted) — documents, intake PDFs
     ├── Amazon Bedrock — Claude inference (PHI never leaves AWS)
     └── CloudTrail + CloudWatch — audit logging, PHI scrubbed from logs
@@ -139,7 +139,7 @@ Claude on Amazon Bedrock is HIPAA-eligible under the **AWS BAA you already need*
 
 ### Clinician chat interface (per clinic)
 
-Self-host **LibreChat or Open WebUI** in each clinic's VPC, pointed at Bedrock Claude — same Terraform module and replication story as everything else, and cheaper to scale than per-clinic Claude Enterprise seats. You control clinic-specific prompt templates (SOAP/DAP session summaries, discharge summaries, client comms at a target reading level), with per-clinician SSO and a full usage audit trail.
+Self-host **Open WebUI** in each clinic's VPC, pointed at Bedrock Claude through a stateless LiteLLM proxy sidecar — same Terraform module and replication story as everything else, and cheaper to scale than per-clinic Claude Enterprise seats. (LibreChat was the other candidate; ruled out 2026-07 because it hard-requires MongoDB — a new per-clinic DocumentDB or a self-managed mongod holding PHI — while Open WebUI reuses the existing encrypted RDS. See implementation.md M4.) You control clinic-specific prompt templates (SOAP/DAP session summaries, discharge summaries, client comms at a target reading level), with per-clinician SSO and a full usage audit trail.
 
 ### Claude in automations
 

@@ -1,8 +1,8 @@
 # DEPLOY.md — ACC first deployment runbook
 
-Ordered, copy-pasteable steps to stand up the **acc** clinic (`envs/acc`) from nothing to a running n8n + Cal.com. Read [CLAUDE.md](CLAUDE.md) and [implementation.md](implementation.md) first for the why; this file is the how.
+Ordered, copy-pasteable steps to stand up the **acc** clinic (`envs/acc`) from nothing to a running n8n + Cal.com + chat (Open WebUI). Read [CLAUDE.md](CLAUDE.md) and [implementation.md](implementation.md) first for the why; this file is the how.
 
-The **chat service (M4)** and its Google Workspace OIDC auth are **not built yet** — see [§10](#10-deferred--m4-chat--google-workspace-oidc). This runbook deploys n8n + Cal.com only.
+The chat service deploys with everything else in Phase B; its Google Workspace SSO cutover is a separate post-deploy step ([§11](#11-chat-open-webui--google-workspace-sso)) gated on the clinic's Workspace admin creating the OAuth client.
 
 ## Facts for this clinic
 
@@ -26,7 +26,7 @@ Every AWS CLI call below assumes `--profile acc --region us-east-1`. Every Terra
 ## 0. Prerequisites (external / one-time)
 
 - [ ] **AWS BAA signed** for the ACC account — gate for any PHI. One BAA covers compute, storage, and Bedrock inference.
-- [ ] **Bedrock model access enabled** in `us-east-1` for the Claude models you'll use (Bedrock console → Model access). Needed by n8n's Bedrock calls now and the chat service in M4.
+- [ ] **Bedrock model access enabled** in `us-east-1` for the Claude models you'll use (Bedrock console → Model access). Needed by n8n's Bedrock credential and the chat service's LiteLLM proxy (models pinned in the `chat_service` module's `bedrock_models` variable).
 - [ ] **CLI profile `acc`** resolves to account `185818464031`:
   ```bash
   aws sts get-caller-identity --profile acc
@@ -107,12 +107,13 @@ Don't proceed until this resolves — otherwise the Phase-B apply hangs on ACM v
 terraform apply
 ```
 
-This creates the VPC, RDS, ALB + wildcard cert (now validates), ECR repo, and the n8n + Cal.com services. The services will **crash-loop** until the DB roles, secrets, and (for Cal.com) the image exist — that's expected, and the apply itself won't wait on steady state. Capture the outputs:
+This creates the VPC, RDS, ALB + wildcard cert (now validates), ECR repo, and the n8n + Cal.com + chat services. The services will **crash-loop** until the DB roles, secrets, and (for Cal.com) the image exist — that's expected, and the apply itself won't wait on steady state. Capture the outputs:
 
 ```bash
 terraform output
 # note: db_address, db_master_secret_arn, calcom_ecr_repository_url,
-#       ecs_cluster_name, n8n_url, calcom_url
+#       ecs_cluster_name, n8n_url, calcom_url, chat_url,
+#       chat_oidc_redirect_uri, n8n_bedrock_user_name
 ```
 
 ---
