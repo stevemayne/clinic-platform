@@ -120,7 +120,7 @@ Cal.com uses Prisma migrations that must run against the `calcom` DB on deploy. 
 ### 5c. Licensing & HIPAA posture
 
 - **As of April 2026 (Cal.com v6.4), the free self-hosted edition is "Cal.diy" under the permissive MIT license** (previously AGPLv3). Self-hosting Cal.diy costs nothing — no per-user fee, no copyleft obligation; we may run, modify, and white-label it freely. ([Cal.com v6.4 license change](https://cal.com/blog/calcom-v6-4), [Cal.diy](https://cal.diy/))
-- **Trade-offs of the free edition:** Cal.com positions Cal.diy as "personal, non-production, use at your own risk" with no security guarantees, and it omits Teams, Organizations, SAML SSO, Analytics, and Admin Panels (and Cal.com Workflows — but n8n covers automation). MIT still permits production use; we simply own all hardening and patching ourselves. The **proprietary commercial Cal.com** (now closed-source, ≥30-user minimum) is the paid alternative if Teams/SSO become hard requirements.
+- **Trade-offs of the free edition (updated 2026-07-18):** Cal.com positions Cal.diy as "personal, non-production, use at your own risk" with no security guarantees, and the enterprise features are **deleted from the codebase, not license-gated** — verified at our pinned SHA: `packages/features/ee` doesn't exist, taking Teams/round-robin, Organizations, Workflows/reminders, SAML SSO, and Insights with it. **There is no paid upgrade path for self-hosted**; the only Teams offering is Cal.com's hosted SaaS (~$12+/user/mo, BAA historically enterprise-tier — not viable for PHI). MIT still permits production use; we own all hardening and patching. **Decision: Cal.diy is the interim scheduler** — per-clinician booking links only, with intake routing + reminders in n8n — pending the EHR decision (Tebra/Healthie both include self-scheduling). Fallback if round-robin becomes a hard requirement first: Easy!Appointments (GPLv3, multi-provider core, needs MySQL) or roll our own.
 - **HIPAA:** self-hosting inside our BAA-covered AWS environment means **compliance is ours** (good — no dependency on Cal.com's cloud BAA). Cal.diy replaces Calendly, which can't sign a BAA (see RECOMMENDATIONS §vendor map).
 
 ### 5d. Configuration
@@ -215,7 +215,7 @@ Everything clinic-specific lives in `locals.tf` + secrets + the Cal.com build ar
 
 - **Cal.com image strategy:** per-clinic build (simple, more images) vs single apex + wildcard proxy (fewer images, more infra). Default: per-clinic build for the PoC.
 - **n8n single-instance vs queue mode:** start main-mode; define the volume threshold that triggers Redis + workers.
-- **Legal:** n8n Sustainable Use vs Embed license is the main item for compliance-counsel review. Cal.com is low-risk now — just confirm we deploy the **Cal.diy MIT community edition**, not the paid commercial product, and accept owning security/patching for the unsupported edition.
+- **Legal:** n8n Sustainable Use vs Embed license is the main item for compliance-counsel review. Cal.com is settled (2026-07-18): we deploy **Cal.diy MIT** (confirmed at the pinned SHA) as the **interim** scheduler, accepting ownership of security/patching; team features are deleted from the self-hosted codebase with no paid path back, so the long-term scheduler question rides on the EHR decision (see TODO.md §6).
 
 ---
 

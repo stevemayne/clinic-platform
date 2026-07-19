@@ -10,7 +10,7 @@ The prerequisite behind [DEPLOY.md](DEPLOY.md) §8 and the CI "Cal.com image bui
 
 - **Upstream:** the monorepo formerly at `calcom/cal.com`, **renamed to `calcom/cal.diy`** (old URLs still redirect; Docker Hub image is still `calcom/cal.com`). We build with its **official root-level `Dockerfile`** (multi-stage, Node 20, yarn/Turbo) — the old separate `calcom/docker` repo is legacy.
 - **The licensing catch (resolved — see [§ Chosen ref](#chosen-ref-decided-2026-07-11)):** the April-2026 relicensing to **MIT ("Cal.diy")** is real, but it currently lives **only on the untagged `main` branch**. The newest *tagged / Docker-published* release is **`v6.2.0` (2026-03-01), which is still AGPLv3 + the `ee/` commercial-license directories.** There is no MIT-licensed *tag* yet, so "pin to MIT" and "pin to a stable tag" are mutually exclusive today. **We pinned `main@<sha>` for MIT.**
-- Either way, **do not enable Teams/SSO/enterprise features** — those are the commercially-licensed edition (see [CLAUDE.md](CLAUDE.md) "Decisions already made"). We run the free community core only. (Note: the post-relicense split is now *edition-based* rather than the old in-repo `ee/` directory split; an authoritative per-feature "requires a license" list was **not** verifiable from source — treat that boundary as needing confirmation before enabling anything beyond the base scheduler.)
+- **Feature boundary (resolved 2026-07-18):** in Cal.diy the enterprise features aren't license-gated — they're **gone from the codebase**. Verified at our pinned SHA: `packages/features/ee` does not exist; Teams/round-robin, Organizations, Workflows/reminders, SSO, and Insights are all removed. Nothing to accidentally "enable"; there is also **no self-hosted commercial upgrade path** (Teams exists only in Cal.com's hosted SaaS). We run per-clinician booking as the interim scheduler; routing + reminders live in n8n (see [CLAUDE.md](CLAUDE.md) "Decisions already made").
 
 ## Chosen ref (decided 2026-07-11)
 
@@ -130,5 +130,5 @@ Forward-only, per clinic: bump `CALCOM_REF` → rebuild + push → run the migra
 
 - [x] **Ref chosen** — MIT `main@f004349`, recorded in [CALCOM_REF](CALCOM_REF).
 - [ ] Decide `:latest` vs image-**digest** pinning for the service task def.
-- [ ] Confirm the exact set of features that require the commercial edition post-relicense (not authoritatively documented) before enabling anything beyond the base scheduler.
-- [ ] Write the CI image-build workflow ([TODO.md](TODO.md) §3).
+- [x] Confirm the exact set of features that require the commercial edition post-relicense — **resolved 2026-07-18**: not a license boundary at all; the ee tree (Teams, Organizations, Workflows, SSO, Insights) is deleted from Cal.diy at our pinned SHA. See "Feature boundary" note above.
+- [x] Write the CI image-build workflow ([TODO.md](TODO.md) §3) — done, verified end-to-end against ACC (2026-07).

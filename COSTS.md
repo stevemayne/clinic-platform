@@ -6,7 +6,7 @@
 **Basis & exclusions:**
 
 - Region **us-east-1**, **on-demand**, **730 hrs/month**, **free tier ignored**.
-- **Excludes** n8n licensing, Monday Enterprise seats, EHR subscription/RCM fees, clearinghouse per-claim fees, Paubox, and your own setup/maintenance margin — these sit outside AWS. (Cal.com is now **self-hosted on AWS**, replacing Calendly, so its compute is included below. The free community edition — **Cal.diy, MIT-licensed** — carries no subscription fee; an optional paid commercial Cal.com license is a separate, non-AWS cost — see the licensing note in [RECOMMENDATIONS.md](RECOMMENDATIONS.md).)
+- **Excludes** n8n licensing, Monday Enterprise seats, EHR subscription/RCM fees, clearinghouse per-claim fees, Paubox, and your own setup/maintenance margin — these sit outside AWS. (Cal.com is now **self-hosted on AWS**, replacing Calendly, so its compute is included below. The free community edition — **Cal.diy, MIT-licensed** — carries no subscription fee and has **no commercial-license option for self-hosting**: team features exist only in Cal.com's hosted SaaS, so Cal.diy serves as the interim per-clinician scheduler — see the licensing note in [RECOMMENDATIONS.md](RECOMMENDATIONS.md).)
 - Bedrock figures are usage-based estimates; they move with clinical volume and model choice.
 
 ---

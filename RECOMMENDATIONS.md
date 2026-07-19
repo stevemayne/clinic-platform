@@ -119,7 +119,7 @@ Recommend **modeling both on a per-claim cost basis** during the OfficeAlly and 
 |---|---|---|
 | Make.com | Not HIPAA-compliant, no BAA | Replace with self-hosted n8n (as planned) |
 | Monday.com | HIPAA **only** on Enterprise plan with BAA activated (25-seat minimum) | Verify ACC's plan; upgrade or keep PHI out of Monday (IDs/initials only, PHI in the clinic DB) |
-| Calendly | **Not HIPAA-compliant**, won't sign a BAA, ToS prohibits PHI | Replace with **self-hosted Cal.diy** (Cal.com's free MIT community edition, as of April 2026) inside our HIPAA AWS env — compliance is ours, no third-party BAA needed. Optional paid commercial Cal.com license only if Teams/SSO are required. |
+| Calendly | **Not HIPAA-compliant**, won't sign a BAA, ToS prohibits PHI | Replace with **self-hosted Cal.diy** (Cal.com's free MIT community edition) inside our HIPAA AWS env — compliance is ours, no third-party BAA needed. **Interim only, per-clinician booking links** (verified 2026-07: Cal.diy has team scheduling/workflows/SSO deleted from the codebase, with no self-hosted paid path — hosted Cal.com's BAA is enterprise-tier); routing + reminders in n8n, long-term scheduler expected from the EHR decision. |
 | Gmail / Drive / Docs | Compliant **if** Google Workspace BAA signed (free) | Confirm the Workspace BAA is executed |
 | Paubox | HIPAA-compliant by design (BAA included) | Keep for patient-facing email |
 | pdf.co | Advertises HIPAA compliance | Verify/execute BAA, or move PDF generation in-house in n8n |
@@ -171,7 +171,7 @@ Treat this as **phase 2+** and demand-create it (the brief is right that appetit
 
 - **Per-client AWS resources:** ≈ **$220–650/month**, typical clinic ≈ **$335/month** (fixed infra ≈ $175 + Bedrock ≈ $160). Model choice (Opus vs Sonnet) and Multi-AZ are the big levers.
 - **Shared costs** (management/CI account, workflow library dev, monitoring, future clean room, your team) amortize across clients — **effective per-client cost falls as you sign more**, which is the economies-of-scale lens in action.
-- **Outside AWS:** n8n licensing, Monday Enterprise seats, EHR subscription/RCM, clearinghouse per-claim fees, Paubox, and any optional Cal.com commercial license (the self-hosted Cal.diy edition is free; its compute is in the AWS figures).
+- **Outside AWS:** n8n licensing, Monday Enterprise seats, EHR subscription/RCM, clearinghouse per-claim fees, and Paubox. (Self-hosted Cal.diy is free with no commercial-license option — team features exist only in Cal.com's hosted SaaS; Cal.diy's compute is in the AWS figures.)
 
 ---
 

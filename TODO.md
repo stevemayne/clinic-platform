@@ -27,7 +27,7 @@ Outstanding work for the clinic platform, for picking up in a fresh session. Rea
 - [x] **M4 — `chat_service` module:** built 2026-07 — **Open WebUI** (not LibreChat: it hard-requires MongoDB → DocumentDB ~$60+/mo or self-managed mongod holding PHI; Open WebUI reuses the encrypted RDS — `chatui` DB + pgvector RAG store) with a **LiteLLM sidecar** proxying OpenAI-compatible calls to Bedrock (model list = Terraform-owned S3 config object; task-role creds, no keys). Fargate service at `chat.<domain>`, mirrors `n8n_service` structure.
   - Auth = **Google Workspace via generic OIDC** (`OAUTH_*`/`OPENID_*`, issuer `https://accounts.google.com`), SSO-only once `chat_oauth_client_id` is set (local-login bootstrap until then), `OAUTH_ALLOWED_DOMAINS` = Workspace domain, JIT provisioning. Redirect URI = `/oauth/oidc/callback` (see §1 item). Secrets: `chat_database_url`, `chat_webui_secret_key`, `chat_oauth_client_secret`, `chat_litellm_master_key`.
   - Clinical prompt templates still to be loaded (Open WebUI workspace prompts/models) — onboarding-runbook material.
-  - **Note:** Google SSO is free in Open WebUI; Cal.com SSO is a commercial-license feature and n8n SSO is Enterprise-tier — don't assume one login spans all three apps for free.
+  - **Note:** Google SSO is free in Open WebUI; SSO doesn't exist at all in self-hosted Cal.diy (removed with the other ee features — hosted-product-only) and n8n SSO is Enterprise-tier — don't assume one login spans all three apps for free.
 - [ ] **M5 — Productize:** finalize `envs/_template`, write the onboarding runbook, and dry-run a second clinic into a fresh account to prove replication.
 - [ ] **ECR pull-through cache for n8n** (production upgrade): add the `aws_ecr_pull_through_cache_rule` (Docker Hub upstream — needs a Docker Hub credential secret), then point `var.n8n_image` at the cache URI and pin by digest. Documented inline in [terraform/modules/n8n_service/main.tf](terraform/modules/n8n_service/main.tf).
 - [ ] **Tighten the execution-role secret/KMS access** in [terraform/modules/ecs_cluster/main.tf](terraform/modules/ecs_cluster/main.tf) from `"*"` to specific secret + key ARNs.
@@ -69,7 +69,7 @@ Outstanding work for the clinic platform, for picking up in a fresh session. Rea
 
 - [ ] **Cal.com image strategy:** per-clinic build (current default) vs single apex + wildcard proxy. Revisit if per-clinic build overhead bites.
 - [ ] **n8n main-mode vs queue mode:** define the volume threshold that triggers Redis (ElastiCache) + worker tasks.
-- [ ] **Cal.com edition:** confirm we deploy **Cal.diy MIT community edition**, not the paid commercial product; accept owning security/patching. Buy commercial license only if Teams/SSO become hard requirements.
+- [x] **Cal.com edition — resolved 2026-07-18, and the ground shifted:** we deploy **Cal.diy MIT** (confirmed at the pinned SHA), but team features turned out to be **removed from the codebase entirely** (`packages/features/ee` deleted — Teams/round-robin, Organizations, Workflows/reminders, SSO, Insights), not commercial-license-gated. There is **no paid upgrade path for self-hosted**; hosted Cal.com Teams (~$12+/user/mo) is the only Teams offering and its BAA is historically enterprise-tier — not viable for PHI. **Decision: Cal.diy is the interim scheduler** — per-clinician booking links only; intake routing + reminders in n8n; revisit when the EHR decision lands (Tebra/Healthie include self-scheduling). If round-robin becomes a hard requirement first: Easy!Appointments (GPLv3, multi-provider is core; needs a MySQL RDS) or roll our own.
 
 ---
 
@@ -78,7 +78,7 @@ Outstanding work for the clinic platform, for picking up in a fresh session. Rea
 - [ ] **n8n licensing:** confirm Sustainable Use vs Embed license for the managed-service model **before signing client #2**.
 - [ ] **Monday.com:** verify ACC is on Enterprise with HIPAA activated + BAA (25-seat min) — otherwise the ops control center itself isn't HIPAA-covered.
 - [ ] **Sign BAAs:** AWS (covers Bedrock), Google Workspace, pdf.co. Paubox already covered.
-- [ ] **Calendly → Cal.com cutover** (replacement now self-hosted; compliance is ours).
+- [ ] **Calendly → Cal.diy cutover** (replacement now self-hosted; compliance is ours). Scope = **per-clinician booking links only** — Cal.diy has no team scheduling and no built-in reminders (see §6); reminders and any "first available clinician" routing are n8n workflows.
 - [ ] **EHR decision:** run the Tebra demo + validate Healthie (API tier, cost, BAA, claim-submission path). Decide whether to migrate ACC. (Kipu only if SUD/residential; AdvancedMD if billing depth dominates.)
 - [ ] **Billing decision:** OfficeAlly call — API docs, per-transaction pricing, Medicaid enrollment; compare against EHR-native RCM on a per-claim basis. Build the 837 submit → 276/277 status → 835 denial-analysis loop.
 - [ ] Engage compliance counsel for reusable BAA/DUA templates.
